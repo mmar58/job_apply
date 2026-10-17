@@ -5,6 +5,9 @@ import session from "express-session";
 import MySQLStoreFactory from "express-mysql-session";
 import rateLimit from "express-rate-limit";
 import { env, isProd } from "./config/env.js";
+import { requireCustomHeader } from "./middleware/security.js";
+import { errorHandler, notFoundHandler } from "./middleware/error.js";
+import { attachUser } from "./middleware/auth.js";
 
 export const SESSION_COOKIE = "anz.session";
 
@@ -43,8 +46,18 @@ export function createApp() {
         cookie: { httpOnly: true, sameSite: "lax", secure: isProd, maxAge },
     }))
 
+    app.use(requireCustomHeader);
+    app.use(attachUser)
+
     app.get("/api/health", (req, res) => {
         res.json({ status: "ok" });
     });
+
+    const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: "draft-8", legacyHeaders: false });
+    const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false });
+
+    app.use(notFoundHandler)
+    app.use(errorHandler)
+
     return app;
 }
