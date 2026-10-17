@@ -3,7 +3,7 @@ import { users } from "./users.js";
 import { timestamps } from "./timestamps.js";
 export const candidateProfiles = mysqlTable("candidate_profiles",
     {
-        id: int("id").primaryKey().references(() =>
+        userId: int("user_id").primaryKey().references(() =>
             users.id, { onDelete: "cascade" }
         ),
         headline: varchar("headline", { length: 200 }),

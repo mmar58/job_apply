@@ -8,6 +8,7 @@ import { env, isProd } from "./config/env.js";
 import { requireCustomHeader } from "./middleware/security.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { attachUser } from "./middleware/auth.js";
+import { authRouter } from "./modules/auth/routes.js";
 
 export const SESSION_COOKIE = "anz.session";
 
@@ -55,6 +56,8 @@ export function createApp() {
 
     const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: "draft-8", legacyHeaders: false });
     const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false });
+
+    app.use("/api/auth", authLimiter, authRouter);
 
     app.use(notFoundHandler)
     app.use(errorHandler)

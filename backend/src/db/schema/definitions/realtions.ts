@@ -13,7 +13,7 @@ export const usersRealtions = relations(users, ({ many, one }) => ({
     userRoles: many(userRoles),
     profile: one(candidateProfiles, {
         fields: [users.id],
-        references: [candidateProfiles.id]
+        references: [candidateProfiles.userId]
     }),
     candidateSkills: many(candidateSkills),
     applications: many(applications)
@@ -55,7 +55,7 @@ export const rolePermissionsRelations = relations(rolePermissions, ({ many, one 
 //candidateProfiles
 export const candidateProfilesRelations = relations(candidateProfiles, ({ one }) => ({
     user: one(users, {
-        fields: [candidateProfiles.id],
+        fields: [candidateProfiles.userId],
         references: [users.id]
     })
 }));
