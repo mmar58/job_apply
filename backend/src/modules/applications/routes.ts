@@ -11,6 +11,8 @@ import { loadCandidateCards, matchSkills } from "./service.js";
 import { getCandidateProfile } from "../candidates/service.js";
 import { calculateProfileCompleteness } from "../../helper/profile.js";
 import { applySchema, listQuerySchema, reviewSchema } from "./validations.js";
+import { getCachedSummary } from "../../lib/redis.js";
+import type { CandidateSummaryFeedback } from "../ai/service.js";
 
 // ---------------- Candidate ----------------
 export const candidateApplicationsRouter = Router();
@@ -211,6 +213,7 @@ adminApplicationsRouter.get("/:id", requirePermission(PERMISSIONS.APPLICATION_VI
     const candidate = cards.get(a.candidateId) ?? null;
     const jobSkills = (await skillsForJobs([a.jobId])).get(a.jobId) ?? [];
     const match = matchSkills(jobSkills, candidate?.skills ?? []);
+    const cachedSummary = await getCachedSummary<CandidateSummaryFeedback>(a.jobId, a.candidateId);
     res.json({
         application: {
             id: a.id,
@@ -223,6 +226,7 @@ adminApplicationsRouter.get("/:id", requirePermission(PERMISSIONS.APPLICATION_VI
         job: job && { id: job.id, title: job.title, company: job.company, skills: jobSkills },
         candidate,
         matchedSkills: match.matched,
+        aiSummary: cachedSummary ?? null,
     });
 });
 

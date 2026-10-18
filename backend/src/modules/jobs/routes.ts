@@ -11,6 +11,7 @@ import { listJobs, jobWithSkills } from "./helper.js";
 import { loadCandidateCards } from "../applications/service.js";
 import { getOrComputeMatchScore } from "../ai/service.js";
 import { applicationCountsForJobs, skillCountsForJobs } from "./stats.js";
+import { getCachedSummary } from "../../lib/redis.js";
 
 
 // ---------------- Public ----------------
@@ -104,9 +105,18 @@ adminJobsRouter.get("/:id/details", requirePermission(PERMISSIONS.JOB_VIEW_ALL),
     );
 
     // Sort applicants by match score descending to suggest most matching candidates
-    const suggestions = [...appsWithScores]
-        .sort((a, b) => b.matchScore - a.matchScore)
-        .slice(0, 5);
+    const suggestions = await Promise.all(
+        [...appsWithScores]
+            .sort((a, b) => b.matchScore - a.matchScore)
+            .slice(0, 5)
+            .map(async (sug) => {
+                const cachedFeedback = await getCachedSummary(id, sug.candidateId);
+                return {
+                    ...sug,
+                    cachedFeedback: cachedFeedback || null,
+                };
+            })
+    );
 
     const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, job.createdBy)).limit(1);
 

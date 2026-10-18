@@ -50,6 +50,7 @@ interface ApplicationDetailData {
         skills: string[];
     } | null;
     matchedSkills?: string[];
+    aiSummary?: AiSummaryResult | null;
 }
 
 interface AiSummaryResult {
@@ -58,6 +59,7 @@ interface AiSummaryResult {
     concerns: string[];
     feedback?: string;
     fitScore?: number;
+    fromCache?: boolean;
 }
 
 export function ReviewApplicationModal({
@@ -84,6 +86,9 @@ export function ReviewApplicationModal({
             .then((res) => {
                 setData(res);
                 setReviewNote(res.application.reviewNote || "");
+                if (res.aiSummary) {
+                    setAiSummary(res.aiSummary);
+                }
             })
             .catch((err) => {
                 setError(err instanceof ApiError ? err.message : "Failed to load application details");
@@ -95,9 +100,9 @@ export function ReviewApplicationModal({
         if (!applicationId) return;
         setLoadingAi(true);
         try {
-            const res = await request<AiSummaryResult>(`/ai/applications/${applicationId}/summary`);
+            // Force generate new AI feedback and update in Redis cache
+            const res = await request<AiSummaryResult>(`/ai/applications/${applicationId}/summary?force=true`);
             setAiSummary(res);
-            toast.success("AI feedback loaded (cached for 20m in Redis)");
         } catch (err) {
             toast.error(err instanceof ApiError ? err.message : "Failed to generate AI feedback");
         } finally {
@@ -206,28 +211,28 @@ export function ReviewApplicationModal({
 
                             {/* AI Summary / Feedback Card (20m Redis Cache) */}
                             <div className="p-4 rounded-2xl border border-primary/20 bg-primary/5 space-y-3">
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2">
                                         <Sparkles className="size-4 text-primary" />
                                         <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                                            AI Profile Summary & Job Fit (Redis 20m Cache)
+                                            AI Profile Summary & Job Fit
                                         </h4>
+
                                     </div>
-                                    {!aiSummary && (
-                                        <button
-                                            type="button"
-                                            onClick={handleFetchAiSummary}
-                                            disabled={loadingAi}
-                                            className="px-3 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-60"
-                                        >
-                                            {loadingAi ? (
-                                                <Loader2Icon className="size-3.5 animate-spin" />
-                                            ) : (
-                                                <Sparkles className="size-3.5" />
-                                            )}
-                                            <span>Generate AI Feedback</span>
-                                        </button>
-                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={handleFetchAiSummary}
+                                        disabled={loadingAi}
+                                        className="px-3 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-60"
+                                        title={aiSummary ? "Generate fresh evaluation and update cache" : "Generate AI evaluation"}
+                                    >
+                                        {loadingAi ? (
+                                            <Loader2Icon className="size-3.5 animate-spin" />
+                                        ) : (
+                                            <Sparkles className="size-3.5" />
+                                        )}
+                                        <span>{aiSummary ? "Regenerate AI Feedback" : "Generate AI Feedback"}</span>
+                                    </button>
                                 </div>
 
                                 {aiSummary && (

@@ -70,7 +70,7 @@ export interface AdminDashboardData {
         jobTitle: string;
         candidateName: string;
         candidateId: number;
-        matchScore?: number;
+        matchScore?: number | null;
     }>;
     topJobs: Array<{
         id: number;
@@ -128,6 +128,13 @@ export interface AdminJobApplicant {
     skills: string[];
     experienceYears: number;
     matchScore: number;
+    cachedFeedback?: {
+        summary: string;
+        strengths: string[];
+        concerns: string[];
+        feedback?: string;
+        fitScore?: number;
+    } | null;
 }
 
 export interface AdminJobDetail {

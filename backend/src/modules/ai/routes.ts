@@ -108,11 +108,46 @@ Only include candidateIds from the provided list. Order from best to worst. Be f
     res.json({ suggestions });
 });
 
-import { getOrComputeMatchScore, getOrComputeSummaryAndFeedback } from "./service.js";
+import {
+    CandidateSummaryFeedback,
+    getOrComputeJobCandidateFeedback,
+    getOrComputeMatchScore,
+    getOrComputeSummaryAndFeedback,
+} from "./service.js";
+import { getCachedSummary } from "../../lib/redis.js";
 
 aiRouter.get("/applications/:id/summary", async (req, res) => {
     const id = idParam(req.params.id);
-    const data = await getOrComputeSummaryAndFeedback(id);
+    const force = req.query.force === "true";
+    const cachedOnly = req.query.cachedOnly === "true";
+
+    if (cachedOnly) {
+        const [app] = await db
+            .select({ jobId: applications.jobId, candidateId: applications.candidateId })
+            .from(applications)
+            .where(eq(applications.id, id))
+            .limit(1);
+        if (!app) throw notFound("Application not found");
+        const cached = await getCachedSummary<CandidateSummaryFeedback>(app.jobId, app.candidateId);
+        return res.json({ cached: !!cached, data: cached ? { ...cached, fromCache: true } : null });
+    }
+
+    const data = await getOrComputeSummaryAndFeedback(id, force);
+    res.json(data);
+});
+
+aiRouter.get("/jobs/:jobId/candidates/:candidateId/feedback", async (req, res) => {
+    const jobId = idParam(req.params.jobId);
+    const candidateId = idParam(req.params.candidateId);
+    const force = req.query.force === "true";
+    const cachedOnly = req.query.cachedOnly === "true";
+
+    if (cachedOnly) {
+        const cached = await getCachedSummary<CandidateSummaryFeedback>(jobId, candidateId);
+        return res.json({ cached: !!cached, data: cached ? { ...cached, fromCache: true } : null });
+    }
+
+    const data = await getOrComputeJobCandidateFeedback(jobId, candidateId, force);
     res.json(data);
 });
 

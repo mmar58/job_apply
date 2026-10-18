@@ -45,6 +45,7 @@ export function AdminDashboard() {
     const [jobModalId, setJobModalId] = useState<number | null>(null);
     const [candidatesModalOpen, setCandidatesModalOpen] = useState(false);
     const [candidateProfileId, setCandidateProfileId] = useState<number | null>(null);
+    const [matchScores, setMatchScores] = useState<Record<number, number | "loading" | null>>({});
 
     const loadDashboard = async (silent = false) => {
         if (!silent) setLoading(true);
@@ -54,6 +55,40 @@ export function AdminDashboard() {
         try {
             const res = await request<AdminDashboardData>("/dashboard/admin");
             setData(res);
+
+            // Populate cached scores immediately and queue uncached ones for async fetching
+            const initialScores: Record<number, number | "loading" | null> = {};
+            const toFetch: Array<{ id: number; jobId: number; candidateId: number }> = [];
+
+            for (const app of res.recentApplications) {
+                if (typeof app.matchScore === "number") {
+                    initialScores[app.id] = app.matchScore;
+                } else {
+                    initialScores[app.id] = "loading";
+                    toFetch.push({ id: app.id, jobId: app.jobId, candidateId: app.candidateId });
+                }
+            }
+            setMatchScores(initialScores);
+
+            // Fetch missing scores asynchronously in background without delaying dashboard view
+            if (toFetch.length > 0) {
+                toFetch.forEach((item) => {
+                    request<{ score: number }>(`/ai/jobs/${item.jobId}/match-score/${item.candidateId}`)
+                        .then((scoreRes) => {
+                            setMatchScores((prev) => ({
+                                ...prev,
+                                [item.id]: scoreRes.score,
+                            }));
+                        })
+                        .catch((err) => {
+                            console.error("Failed to fetch match score:", err);
+                            setMatchScores((prev) => ({
+                                ...prev,
+                                [item.id]: null,
+                            }));
+                        });
+                });
+            }
         } catch (err) {
             if (err instanceof ApiError) {
                 setError(err.message);
@@ -241,26 +276,49 @@ export function AdminDashboard() {
                                                     {app.candidateName}
                                                 </button>
                                                 <StatusBadge status={app.status} />
-                                                {typeof app.matchScore === "number" && (
-                                                    <span
-                                                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                                                            app.matchScore >= 80
-                                                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
-                                                                : app.matchScore >= 60
-                                                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30"
-                                                                : "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/25"
-                                                        }`}
-                                                        title="AI Match Score cached in Redis (48h sliding TTL)"
-                                                    >
-                                                        <Sparkles className="size-3" />
-                                                        <span>{app.matchScore}% Match</span>
-                                                    </span>
-                                                )}
+                                                {(() => {
+                                                    const currentScore = matchScores[app.id] !== undefined ? matchScores[app.id] : app.matchScore;
+                                                    if (currentScore === "loading") {
+                                                        return (
+                                                            <span
+                                                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border border-primary/20 bg-primary/5 text-primary/80 animate-pulse"
+                                                                title="Calculating AI match score in background..."
+                                                            >
+                                                                <Loader2Icon className="size-3 animate-spin text-primary" />
+                                                                <span>Calculating score...</span>
+                                                            </span>
+                                                        );
+                                                    }
+                                                    if (typeof currentScore === "number") {
+                                                        return (
+                                                            <span
+                                                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border transition-all duration-300 ${
+                                                                    currentScore >= 80
+                                                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                                                        : currentScore >= 60
+                                                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                                                                        : "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/25"
+                                                                }`}
+                                                                title="AI Match Score cached in Redis (48h sliding TTL)"
+                                                            >
+                                                                <Sparkles className="size-3" />
+                                                                <span>{currentScore}% Match</span>
+                                                            </span>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                             </div>
                                             <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-2">
-                                                <span className="text-foreground/90 font-medium truncate">
-                                                    {app.jobTitle}
-                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setJobModalId(app.jobId)}
+                                                    className="text-foreground/90 font-medium truncate hover:text-primary transition-colors cursor-pointer text-left flex items-center gap-1 group"
+                                                    title="Click to view job details & applications"
+                                                >
+                                                    <Briefcase className="size-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                    <span>{app.jobTitle}</span>
+                                                </button>
                                                 <span>•</span>
                                                 <span className="flex items-center gap-1">
                                                     <Clock className="size-3" />

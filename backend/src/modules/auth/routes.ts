@@ -41,7 +41,6 @@ authRouter.post("/register", async (req, res) => {
 })
 
 authRouter.post("/login", async (req, res) => {
-    console.log("login request: ", req.body);
     const input = parse(loginSchema, req.body);
     const [user] = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
 

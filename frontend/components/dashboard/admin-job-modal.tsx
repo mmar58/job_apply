@@ -15,8 +15,18 @@ import {
     FileText,
 } from "lucide-react";
 import { request, ApiError } from "@/lib/api-core";
+import { toast } from "sonner";
 import { StatusBadge } from "./status-badge";
 import type { AdminJobDetail, AdminJobApplicant } from "@/lib/types";
+
+interface AiFeedbackData {
+    summary: string;
+    strengths: string[];
+    concerns: string[];
+    feedback?: string;
+    fitScore?: number;
+    fromCache?: boolean;
+}
 
 interface AdminJobModalProps {
     jobId: number | null;
@@ -38,6 +48,10 @@ export function AdminJobModal({
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<"overview" | "applicants" | "suggestions">("overview");
 
+    const [feedbackMap, setFeedbackMap] = useState<Record<number, AiFeedbackData>>({});
+    const [loadingFeedback, setLoadingFeedback] = useState<Record<number, boolean>>({});
+    const [expandedFeedback, setExpandedFeedback] = useState<Record<number, boolean>>({});
+
     useEffect(() => {
         if (!isOpen || !jobId) return;
         setLoading(true);
@@ -45,12 +59,65 @@ export function AdminJobModal({
         setActiveTab("overview");
 
         request<AdminJobDetail>(`/admin/jobs/${jobId}/details`)
-            .then((res) => setData(res))
+            .then((res) => {
+                setData(res);
+                if (res.suggestions) {
+                    const initialMap: Record<number, AiFeedbackData> = {};
+                    for (const s of res.suggestions) {
+                        if (s.cachedFeedback) {
+                            initialMap[s.candidateId] = {
+                                ...s.cachedFeedback,
+                                fromCache: true,
+                            };
+                        }
+                    }
+                    setFeedbackMap(initialMap);
+                }
+            })
             .catch((err) => {
                 setError(err instanceof ApiError ? err.message : "Failed to load job details");
             })
             .finally(() => setLoading(false));
     }, [isOpen, jobId]);
+
+    const handleToggleFeedback = async (sug: AdminJobApplicant) => {
+        // If already expanded, toggle closed
+        if (expandedFeedback[sug.candidateId]) {
+            setExpandedFeedback((prev) => ({ ...prev, [sug.candidateId]: false }));
+            return;
+        }
+
+        // If already in feedbackMap, toggle expand immediately without network call
+        if (feedbackMap[sug.candidateId]) {
+            setExpandedFeedback((prev) => ({ ...prev, [sug.candidateId]: true }));
+            return;
+        }
+
+        // Otherwise fetch: checks cache first, then generates and saves to cache
+        setLoadingFeedback((prev) => ({ ...prev, [sug.candidateId]: true }));
+        try {
+            const res = await request<AiFeedbackData>(`/ai/applications/${sug.id}/summary`);
+            setFeedbackMap((prev) => ({ ...prev, [sug.candidateId]: res }));
+            setExpandedFeedback((prev) => ({ ...prev, [sug.candidateId]: true }));
+        } catch (err) {
+            toast.error(err instanceof ApiError ? err.message : "Failed to load AI feedback");
+        } finally {
+            setLoadingFeedback((prev) => ({ ...prev, [sug.candidateId]: false }));
+        }
+    };
+
+    const handleRegenerateFeedback = async (sug: AdminJobApplicant) => {
+        setLoadingFeedback((prev) => ({ ...prev, [sug.candidateId]: true }));
+        try {
+            const res = await request<AiFeedbackData>(`/ai/applications/${sug.id}/summary?force=true`);
+            setFeedbackMap((prev) => ({ ...prev, [sug.candidateId]: res }));
+            setExpandedFeedback((prev) => ({ ...prev, [sug.candidateId]: true }));
+        } catch (err) {
+            toast.error(err instanceof ApiError ? err.message : "Failed to regenerate AI feedback");
+        } finally {
+            setLoadingFeedback((prev) => ({ ...prev, [sug.candidateId]: false }));
+        }
+    };
 
     if (!isOpen || !jobId) return null;
 
@@ -107,22 +174,20 @@ export function AdminJobModal({
                     <button
                         type="button"
                         onClick={() => setActiveTab("overview")}
-                        className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
-                            activeTab === "overview"
-                                ? "bg-primary text-primary-foreground shadow-xs"
-                                : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
-                        }`}
+                        className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${activeTab === "overview"
+                            ? "bg-primary text-primary-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+                            }`}
                     >
                         Job Overview
                     </button>
                     <button
                         type="button"
                         onClick={() => setActiveTab("applicants")}
-                        className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                            activeTab === "applicants"
-                                ? "bg-primary text-primary-foreground shadow-xs"
-                                : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
-                        }`}
+                        className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === "applicants"
+                            ? "bg-primary text-primary-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+                            }`}
                     >
                         <Users className="size-3.5" />
                         <span>Applicants ({data?.applications.length ?? 0})</span>
@@ -130,11 +195,10 @@ export function AdminJobModal({
                     <button
                         type="button"
                         onClick={() => setActiveTab("suggestions")}
-                        className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                            activeTab === "suggestions"
-                                ? "bg-primary text-primary-foreground shadow-xs"
-                                : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
-                        }`}
+                        className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === "suggestions"
+                            ? "bg-primary text-primary-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+                            }`}
                     >
                         <Sparkles className="size-3.5" />
                         <span>AI Suggested Matches ({data?.suggestions.length ?? 0})</span>
@@ -359,17 +423,111 @@ export function AdminJobModal({
                                                         )}
                                                     </div>
 
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            onClose();
-                                                            onReviewApplicant(sug.id);
-                                                        }}
-                                                        className="w-full py-1.5 px-3 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                                                    >
-                                                        <Eye className="size-3.5" />
-                                                        <span>View Submission</span>
-                                                    </button>
+                                                    <div className="flex items-center gap-2 pt-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleToggleFeedback(sug)}
+                                                            disabled={loadingFeedback[sug.candidateId]}
+                                                            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${expandedFeedback[sug.candidateId]
+                                                                ? "bg-primary/10 text-primary border-primary/30"
+                                                                : "bg-secondary text-foreground hover:bg-secondary/80 border-border"
+                                                                }`}
+                                                            title={
+                                                                feedbackMap[sug.candidateId]
+                                                                    ? "Toggle AI feedback display"
+                                                                    : "Load AI feedback (cached if available, else generated)"
+                                                            }
+                                                        >
+                                                            {loadingFeedback[sug.candidateId] ? (
+                                                                <Loader2Icon className="size-3.5 animate-spin text-primary" />
+                                                            ) : (
+                                                                <Sparkles className="size-3.5 text-primary" />
+                                                            )}
+                                                            <span>
+                                                                {loadingFeedback[sug.candidateId]
+                                                                    ? "Loading..."
+                                                                    : expandedFeedback[sug.candidateId]
+                                                                        ? "Hide Feedback"
+                                                                        : "AI Feedback"}
+                                                            </span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                onClose();
+                                                                onReviewApplicant(sug.id);
+                                                            }}
+                                                            className="flex-1 py-1.5 px-3 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                                                        >
+                                                            <Eye className="size-3.5" />
+                                                            <span>View Submission</span>
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Collapsible AI Feedback Display */}
+                                                    {expandedFeedback[sug.candidateId] && feedbackMap[sug.candidateId] && (
+                                                        <div className="mt-3 p-3.5 rounded-xl border border-primary/20 bg-primary/5 text-xs space-y-2.5 animate-in fade-in duration-200">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <div className="flex items-center gap-1.5 font-bold text-foreground">
+                                                                    <Sparkles className="size-3.5 text-primary" />
+                                                                    <span>AI Job Suitability Feedback</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {feedbackMap[sug.candidateId].fromCache && (
+                                                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
+                                                                            Cached
+                                                                        </span>
+                                                                    )}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRegenerateFeedback(sug)}
+                                                                        disabled={loadingFeedback[sug.candidateId]}
+                                                                        className="text-[11px] text-primary hover:underline font-semibold cursor-pointer disabled:opacity-50"
+                                                                        title="Force generate fresh feedback and update cache"
+                                                                    >
+                                                                        Regenerate
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
+                                                            <p className="text-muted-foreground leading-relaxed">
+                                                                {feedbackMap[sug.candidateId].summary}
+                                                            </p>
+
+                                                            {feedbackMap[sug.candidateId].strengths && feedbackMap[sug.candidateId].strengths.length > 0 && (
+                                                                <div>
+                                                                    <span className="font-semibold text-emerald-700 dark:text-emerald-400 block mb-0.5">
+                                                                        Strengths:
+                                                                    </span>
+                                                                    <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                                                                        {feedbackMap[sug.candidateId].strengths.map((s, i) => (
+                                                                            <li key={i}>{s}</li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            )}
+
+                                                            {feedbackMap[sug.candidateId].concerns && feedbackMap[sug.candidateId].concerns.length > 0 && (
+                                                                <div>
+                                                                    <span className="font-semibold text-amber-700 dark:text-amber-400 block mb-0.5">
+                                                                        Considerations / Gaps:
+                                                                    </span>
+                                                                    <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                                                                        {feedbackMap[sug.candidateId].concerns.map((c, i) => (
+                                                                            <li key={i}>{c}</li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            )}
+
+                                                            {feedbackMap[sug.candidateId].feedback && (
+                                                                <div className="p-2.5 rounded-lg bg-card border border-border/80">
+                                                                    <strong className="text-primary block mb-0.5">Advice / Feedback:</strong>
+                                                                    <p className="text-muted-foreground">{feedbackMap[sug.candidateId].feedback}</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

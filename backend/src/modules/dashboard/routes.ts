@@ -5,7 +5,7 @@ import { applications, jobs, roles, userRoles, users } from "../../db/schema/ind
 import { PERMISSIONS } from "../../config/permissions.js";
 import { requirePermission } from "../../middleware/auth.js";
 import { getCandidateProfile } from "../candidates/service.js";
-import { getOrComputeMatchScore } from "../ai/service.js";
+import { getCachedMatchScore } from "../../lib/redis.js";
 import { calculateProfileCompleteness } from "../../helper/profile.js";
 
 export const dashboardRouter = Router();
@@ -66,7 +66,7 @@ dashboardRouter.get("/admin", requirePermission(PERMISSIONS.DASHBOARD_ADMIN), as
             jobTitle: app.jobTitle,
             candidateName: app.candidateName,
             candidateId: app.candidateId,
-            matchScore: await getOrComputeMatchScore(app.jobId, app.candidateId, app.coverLetter),
+            matchScore: await getCachedMatchScore(app.jobId, app.candidateId),
         }))
     );
 

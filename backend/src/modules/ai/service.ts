@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../db/index.js";
 import { applications, jobs } from "../../db/schema/index.js";
@@ -75,7 +75,7 @@ export async function getOrComputeMatchScore(
         const [app] = await db
             .select({ coverLetter: applications.coverLetter })
             .from(applications)
-            .where(eq(applications.jobId, jobId))
+            .where(and(eq(applications.jobId, jobId), eq(applications.candidateId, candidateId)))
             .limit(1);
         letter = app?.coverLetter || "";
     }
@@ -125,10 +125,12 @@ ${asData({
 /**
  * Get or compute candidate summary & feedback on job suitability.
  * Caches in Redis for 20 minutes to save tokens.
+ * If forceGenerate is true, bypasses cache and generates new feedback with Gemini.
  */
 export async function getOrComputeSummaryAndFeedback(
     applicationId: number,
-): Promise<CandidateSummaryFeedback> {
+    forceGenerate: boolean = false,
+): Promise<CandidateSummaryFeedback & { fromCache?: boolean }> {
     const [app] = await db.select().from(applications).where(eq(applications.id, applicationId)).limit(1);
     if (!app) throw new Error("Application not found");
 
@@ -137,10 +139,12 @@ export async function getOrComputeSummaryAndFeedback(
     const candidate = candidateMap.get(app.candidateId);
     if (!job || !candidate) throw new Error("Missing candidate or job details");
 
-    // Check 20-minute Redis cache
-    const cached = await getCachedSummary<CandidateSummaryFeedback>(job.id, candidate.id);
-    if (cached) {
-        return cached;
+    // Check 20-minute Redis cache if not forced
+    if (!forceGenerate) {
+        const cached = await getCachedSummary<CandidateSummaryFeedback>(job.id, candidate.id);
+        if (cached) {
+            return { ...cached, fromCache: true };
+        }
     }
 
     const jobSkillsList = (await skillsForJobs([job.id])).get(job.id) ?? [];
@@ -187,5 +191,78 @@ Return JSON: {
     // Cache in Redis for 20 minutes (1200 seconds)
     await setCachedSummary(job.id, candidate.id, response);
 
-    return response;
+    return { ...response, fromCache: false };
+}
+
+/**
+ * Get or compute candidate summary & feedback by jobId and candidateId.
+ */
+export async function getOrComputeJobCandidateFeedback(
+    jobId: number,
+    candidateId: number,
+    forceGenerate: boolean = false,
+): Promise<CandidateSummaryFeedback & { fromCache?: boolean }> {
+    // Check 20-minute Redis cache if not forced
+    if (!forceGenerate) {
+        const cached = await getCachedSummary<CandidateSummaryFeedback>(jobId, candidateId);
+        if (cached) {
+            return { ...cached, fromCache: true };
+        }
+    }
+
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+    const candidateMap = await loadCandidateCards([candidateId]);
+    const candidate = candidateMap.get(candidateId);
+    if (!job || !candidate) throw new Error("Missing candidate or job details");
+
+    const [app] = await db
+        .select({ coverLetter: applications.coverLetter })
+        .from(applications)
+        .where(and(eq(applications.jobId, jobId), eq(applications.candidateId, candidateId)))
+        .limit(1);
+
+    const jobSkillsList = (await skillsForJobs([jobId])).get(jobId) ?? [];
+    const matchedSkills = matchSkills(jobSkillsList, candidate.skills).matched;
+
+    const score = await getOrComputeMatchScore(jobId, candidateId, app?.coverLetter);
+
+    const result = await generateJson({
+        system: `You are an AI hiring assistant. Summarise the candidate's profile and provide constructive feedback on their fit for this specific job position.
+Return JSON: {
+  "summary": string (3-4 sentences outlining qualifications and background),
+  "strengths": string[] (up to 4 bullet points of strongest matches),
+  "concerns": string[] (up to 3 areas for growth or missing requirements),
+  "feedback": string (actionable advice for the hiring manager and candidate)
+}`,
+        prompt: `Job:\n${asData({
+            title: job.title,
+            experienceLevel: job.experienceLevel,
+            requiredSkills: jobSkillsList,
+            requirements: job.requirements.slice(0, 2000),
+        })}\n\nCandidate Profile & Application:\n${asData({
+            headline: candidate.headline,
+            bio: candidate.bio,
+            experienceYears: candidate.experienceYears,
+            skills: candidate.skills,
+            education: candidate.education,
+            experience: candidate.experience,
+            coverLetter: app?.coverLetter ? app.coverLetter.slice(0, 2500) : "",
+        })}`,
+        schema: summaryFeedbackSchema,
+    });
+
+    const response: CandidateSummaryFeedback = {
+        summary: result.summary,
+        strengths: result.strengths,
+        concerns: result.concerns,
+        feedback: result.feedback || "Candidate demonstrates relevant foundation for this role.",
+        fitScore: score,
+        score,
+        matchedSkills,
+    };
+
+    // Cache in Redis for 20 minutes (1200 seconds)
+    await setCachedSummary(jobId, candidateId, response);
+
+    return { ...response, fromCache: false };
 }

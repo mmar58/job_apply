@@ -23,7 +23,17 @@ export function ApplyModal({ job, isOpen, onClose, onSuccess }: ApplyModalProps)
     const [completeness, setCompleteness] = useState<number | null>(null);
 
     useEffect(() => {
-        if (!isOpen || !user) return;
+        if (!isOpen) {
+            setCoverLetter("");
+            setError(null);
+            return;
+        }
+
+        // Reset form state when modal opens for a job
+        setCoverLetter("");
+        setError(null);
+
+        if (!user) return;
         request<{ completeness: number }>("/candidate/profile")
             .then((res) => {
                 if (typeof res.completeness === "number") {
@@ -31,7 +41,7 @@ export function ApplyModal({ job, isOpen, onClose, onSuccess }: ApplyModalProps)
                 }
             })
             .catch(() => {});
-    }, [isOpen, user]);
+    }, [isOpen, job?.id, user]);
 
     if (!isOpen || !job) return null;
 
@@ -51,6 +61,8 @@ export function ApplyModal({ job, isOpen, onClose, onSuccess }: ApplyModalProps)
                 body: { coverLetter: coverLetter.trim() },
             });
             toast.success("Application submitted successfully!");
+            setCoverLetter("");
+            setError(null);
             onSuccess();
             onClose();
         } catch (err) {
