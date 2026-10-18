@@ -4,7 +4,9 @@ import { db } from "../../db/index.js";
 import { applications, jobs, roles, userRoles, users } from "../../db/schema/index.js";
 import { PERMISSIONS } from "../../config/permissions.js";
 import { requirePermission } from "../../middleware/auth.js";
-import { getCandidateProfile } from "../candidates/routes.js";
+import { getCandidateProfile } from "../candidates/service.js";
+import { getOrComputeMatchScore } from "../ai/service.js";
+import { calculateProfileCompleteness } from "../../helper/profile.js";
 
 export const dashboardRouter = Router();
 
@@ -25,6 +27,8 @@ dashboardRouter.get("/admin", requirePermission(PERMISSIONS.DASHBOARD_ADMIN), as
                 jobId: jobs.id,
                 jobTitle: jobs.title,
                 candidateName: users.name,
+                candidateId: users.id,
+                coverLetter: applications.coverLetter,
             })
             .from(applications)
             .innerJoin(jobs, eq(jobs.id, applications.jobId))
@@ -45,17 +49,32 @@ dashboardRouter.get("/admin", requirePermission(PERMISSIONS.DASHBOARD_ADMIN), as
         jobCounts[r.status] = Number(r.n);
         jobCounts.total += Number(r.n);
     }
-    const appCounts = { pending: 0, approved: 0, rejected: 0, total: 0 };
+    const appCounts = { pending: 0, shortlisted: 0, hired: 0, rejected: 0, total: 0 };
     for (const r of appRows) {
-        appCounts[r.status] = Number(r.n);
+        if (r.status in appCounts) {
+            (appCounts as any)[r.status] = Number(r.n);
+        }
         appCounts.total += Number(r.n);
     }
+
+    const recentWithScores = await Promise.all(
+        recent.map(async (app) => ({
+            id: app.id,
+            status: app.status,
+            createdAt: app.createdAt,
+            jobId: app.jobId,
+            jobTitle: app.jobTitle,
+            candidateName: app.candidateName,
+            candidateId: app.candidateId,
+            matchScore: await getOrComputeMatchScore(app.jobId, app.candidateId, app.coverLetter),
+        }))
+    );
 
     res.json({
         jobs: jobCounts,
         applications: appCounts,
         candidates: Number(candidates?.n ?? 0),
-        recentApplications: recent,
+        recentApplications: recentWithScores,
         topJobs: top.map((t) => ({ ...t, applications: Number(t.n), n: undefined })),
     });
 });
@@ -86,22 +105,15 @@ dashboardRouter.get("/candidate", requirePermission(PERMISSIONS.DASHBOARD_CANDID
         db.select({ n: count() }).from(jobs).where(eq(jobs.status, "active")),
     ]);
 
-    const appCounts = { pending: 0, approved: 0, rejected: 0, total: 0 };
+    const appCounts = { pending: 0, shortlisted: 0, hired: 0, rejected: 0, total: 0 };
     for (const r of appRows) {
-        appCounts[r.status] = Number(r.n);
+        if (r.status in appCounts) {
+            (appCounts as any)[r.status] = Number(r.n);
+        }
         appCounts.total += Number(r.n);
     }
 
-    const checks = [
-        !!profile.headline,
-        !!profile.bio,
-        !!profile.phone,
-        !!profile.address,
-        !!profile.education,
-        !!profile.experience,
-        profile.skills.length > 0,
-    ];
-    const profileCompleteness = Math.round((checks.filter(Boolean).length / checks.length) * 100);
+    const profileCompleteness = calculateProfileCompleteness(profile);
 
     res.json({
         applications: appCounts,

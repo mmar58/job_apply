@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { X, Loader2Icon, Send, Building2, MapPin, CheckCircle2 } from "lucide-react";
+import { X, Loader2Icon, Send, Building2, MapPin, CheckCircle2, AlertTriangle, ArrowRight } from "lucide-react";
 import { request, ApiError } from "@/lib/api-core";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
@@ -20,6 +20,18 @@ export function ApplyModal({ job, isOpen, onClose, onSuccess }: ApplyModalProps)
     const [coverLetter, setCoverLetter] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [completeness, setCompleteness] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!isOpen || !user) return;
+        request<{ completeness: number }>("/candidate/profile")
+            .then((res) => {
+                if (typeof res.completeness === "number") {
+                    setCompleteness(res.completeness);
+                }
+            })
+            .catch(() => {});
+    }, [isOpen, user]);
 
     if (!isOpen || !job) return null;
 
@@ -113,6 +125,28 @@ export function ApplyModal({ job, isOpen, onClose, onSuccess }: ApplyModalProps)
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                        {completeness !== null && completeness <= 50 && (
+                            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-2">
+                                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-sm">
+                                    <AlertTriangle className="size-4 shrink-0" />
+                                    <span>Profile Completeness Required ({completeness}%)</span>
+                                </div>
+                                <p className="text-xs text-foreground/85 leading-relaxed">
+                                    Candidates cannot apply to jobs unless their profile is more than 50% complete. Please add your bio, headline, skills, and experience details in your dashboard before applying.
+                                </p>
+                                <div className="pt-1">
+                                    <Link
+                                        href="/dashboard"
+                                        onClick={onClose}
+                                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors shadow-xs"
+                                    >
+                                        <span>Update Profile Now</span>
+                                        <ArrowRight className="size-3" />
+                                    </Link>
+                                </div>
+                            </div>
+                        )}
+
                         {error && (
                             <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3.5 text-sm text-destructive">
                                 {error}
@@ -137,8 +171,9 @@ export function ApplyModal({ job, isOpen, onClose, onSuccess }: ApplyModalProps)
                                 rows={6}
                                 value={coverLetter}
                                 onChange={(e) => setCoverLetter(e.target.value)}
+                                disabled={completeness !== null && completeness <= 50}
                                 placeholder="Explain why you are the ideal fit for this role, mentioning relevant experience, achievements, and technical strengths..."
-                                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background/60 focus:bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none leading-relaxed"
+                                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background/60 focus:bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none leading-relaxed disabled:opacity-50 disabled:bg-muted"
                             />
                         </div>
 
@@ -152,8 +187,8 @@ export function ApplyModal({ job, isOpen, onClose, onSuccess }: ApplyModalProps)
                             </button>
                             <button
                                 type="submit"
-                                disabled={loading || coverLetter.length < 30}
-                                className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
+                                disabled={loading || coverLetter.length < 30 || (completeness !== null && completeness <= 50)}
+                                className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                             >
                                 {loading ? (
                                     <>

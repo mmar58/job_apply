@@ -22,6 +22,12 @@ const schema = z.object({
     GEMINI_API_KEY: z.string().default(""),
     GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
 
+    // Redis
+    REDIS_HOST: z.string().default("127.0.0.1"),
+    REDIS_PORT: z.coerce.number().default(6379),
+    REDIS_USER: z.string().default("default"),
+    REDIS_PASSWORD: z.string().optional(),
+
     // Seed Admin
     SEED_ADMIN_NAME: z.string().default("AnZ Admin"),
     SEED_ADMIN_EMAIL: z.string().default("admin@test.com"),

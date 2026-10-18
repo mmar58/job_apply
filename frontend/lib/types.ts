@@ -11,7 +11,7 @@ export type AuthUser = {
 export type JobType = "full_time" | "part_time" | "contract" | "internship" | "remote";
 export type ExperienceLevel = "entry" | "mid" | "senior" | "lead";
 export type JobStatus = "draft" | "active" | "closed";
-export type ApplicationStatus = "pending" | "approved" | "rejected";
+export type ApplicationStatus = "pending" | "shortlisted" | "hired" | "rejected";
 
 export interface JobItem {
     id: number;
@@ -28,10 +28,13 @@ export interface JobItem {
     updatedAt: string;
     excerpt: string;
     skills: string[];
+    applicantCount?: number;
+    applicationsCount?: number;
     applications?: {
         total: number;
         pending: number;
-        approved: number;
+        shortlisted: number;
+        hired: number;
         rejected: number;
     };
 }
@@ -53,7 +56,8 @@ export interface AdminDashboardData {
     };
     applications: {
         pending: number;
-        approved: number;
+        shortlisted: number;
+        hired: number;
         rejected: number;
         total: number;
     };
@@ -65,6 +69,8 @@ export interface AdminDashboardData {
         jobId: number;
         jobTitle: string;
         candidateName: string;
+        candidateId: number;
+        matchScore?: number;
     }>;
     topJobs: Array<{
         id: number;
@@ -77,7 +83,8 @@ export interface AdminDashboardData {
 export interface CandidateDashboardData {
     applications: {
         pending: number;
-        approved: number;
+        shortlisted: number;
+        hired: number;
         rejected: number;
         total: number;
     };
@@ -105,4 +112,58 @@ export interface CandidateApplicationItem {
     company: string;
     location: string;
     jobStatus: JobStatus;
-}
+    totalApplications?: number;
+}
+
+export interface AdminJobApplicant {
+    id: number;
+    candidateId: number;
+    status: ApplicationStatus;
+    coverLetter: string;
+    reviewNote: string | null;
+    createdAt: string;
+    candidateName: string;
+    candidateEmail: string;
+    headline: string | null;
+    skills: string[];
+    experienceYears: number;
+    matchScore: number;
+}
+
+export interface AdminJobDetail {
+    job: JobItem & {
+        description: string;
+        requirements: string;
+        createdByName?: string | null;
+    };
+    applications: AdminJobApplicant[];
+    suggestions: AdminJobApplicant[];
+    totalApplications: number;
+}
+
+export interface AdminCandidateCard {
+    id: number;
+    name: string;
+    email: string;
+    headline: string | null;
+    bio: string | null;
+    phone: string | null;
+    address: string | null;
+    experienceYears: number;
+    education: string | null;
+    experience: string | null;
+    linkedinUrl: string | null;
+    githubUrl: string | null;
+    portfolioUrl: string | null;
+    skills: string[];
+    applicationsCount: number;
+    completeness: number;
+    applications?: Array<{
+        id: number;
+        status: ApplicationStatus;
+        createdAt: string;
+        jobId: number;
+        jobTitle: string;
+        company: string;
+    }>;
+}

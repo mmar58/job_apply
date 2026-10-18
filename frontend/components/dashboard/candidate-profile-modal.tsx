@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Loader2Icon, User, Save, Sparkles, CheckCircle2 } from "lucide-react";
+import { X, Loader2Icon, User, Save } from "lucide-react";
 import { request, ApiError } from "@/lib/api-core";
 import { toast } from "sonner";
 
@@ -113,7 +113,9 @@ export function CandidateProfileModal({
             onSuccess();
             onClose();
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : "Failed to update profile");
+            const message = err instanceof ApiError ? err.message : "Failed to update profile";
+            setError(message);
+            toast.error(message);
         } finally {
             setSaving(false);
         }

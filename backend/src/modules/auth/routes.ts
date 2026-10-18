@@ -1,49 +1,17 @@
 import { Router } from "express";
 import argon2 from "argon2";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "../../db/index.js";
-import { users, userRoles, roles, permissions, rolePermissions, candidateProfiles } from "../../db/schema/index.js";
+import { users, userRoles, roles, candidateProfiles } from "../../db/schema/index.js";
 import { loadAuthUser, requireAuth } from "../../middleware/auth.js";
 import { conflict, parse, unauthorized } from "../../lib/http.js";
 import { DEFAULT_SIGNUP_ROLE } from "../../config/permissions.js";
 
 import { SESSION_COOKIE } from "../../app.js";
+import { loginSchema, registerSchema } from "./validations.js";
+import { startSession } from "./service.js";
 
 export const authRouter = Router();
-
-const registerSchema = z.object({
-    name: z.string().trim().min(2).max(150),
-    email: z.string().trim().toLowerCase().max(255).pipe(z.email()),
-    password: z.string().min(8, "Password must be at least 8 characters").max(128),
-});
-
-const loginSchema = z.object({
-    email: z.string().trim().toLowerCase(),
-    password: z.string().min(1),
-});
-
-function regenerate(req: Express.Request): Promise<void> {
-    return new Promise((resolve, reject) => {
-        req.session.regenerate((err: Error) => {
-            if (err) reject(err);
-            else resolve();
-        })
-    })
-}
-function saveSession(req: Express.Request): Promise<void> {
-    return new Promise((resolve, reject) => {
-        req.session.save(err => {
-            if (err) reject(err);
-            else resolve();
-        })
-    })
-}
-async function startSession(req: Express.Request, userId: number): Promise<void> {
-    await regenerate(req); // prevents session fixation
-    req.session.userId = userId;
-    await saveSession(req);
-}
 
 authRouter.post("/register", async (req, res) => {
     const input = parse(registerSchema, req.body);

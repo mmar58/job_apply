@@ -16,9 +16,12 @@ export function StatusBadge({ status, variant = "application", className }: Stat
     let colorClasses = "bg-muted text-muted-foreground border-border";
     let label = status.replace(/_/g, " ");
 
-    if (normalized === "approved" || normalized === "active") {
+    if (normalized === "hired" || normalized === "approved" || normalized === "active") {
         colorClasses = "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20";
-        label = normalized === "approved" ? "Approved" : "Active";
+        label = normalized === "hired" ? "Hired" : normalized === "approved" ? "Approved" : "Active";
+    } else if (normalized === "shortlisted") {
+        colorClasses = "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20";
+        label = "Shortlisted";
     } else if (normalized === "pending" || normalized === "draft") {
         colorClasses = "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
         label = normalized === "pending" ? "Pending" : "Draft";

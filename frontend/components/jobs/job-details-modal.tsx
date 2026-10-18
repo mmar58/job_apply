@@ -11,6 +11,7 @@ import {
     Send,
     Loader2Icon,
     CheckCircle2,
+    Users,
 } from "lucide-react";
 import { request, ApiError } from "@/lib/api-core";
 import { StatusBadge } from "@/components/dashboard/status-badge";
@@ -112,6 +113,12 @@ export function JobDetailsModal({
                             <div className="flex flex-wrap items-center gap-2.5 p-3.5 rounded-xl bg-background/60 border border-border">
                                 <StatusBadge status={job.jobType} />
                                 <StatusBadge status={job.experienceLevel} />
+                                {typeof job.applicantCount === "number" && (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                                        <Users className="size-3.5" />
+                                        <span>{job.applicantCount} {job.applicantCount === 1 ? "applicant" : "applicants"}</span>
+                                    </span>
+                                )}
                                 <div className="text-xs font-semibold text-foreground flex items-center gap-1.5 ml-auto">
                                     <DollarSign className="size-3.5 text-emerald-600" />
                                     <span>{formatSalary(job.salaryMin, job.salaryMax)}</span>

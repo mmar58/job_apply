@@ -1,93 +1,17 @@
 import { Router } from "express";
-import { and, desc, eq, exists, gte, isNull, like, or, sql, count, type SQL } from "drizzle-orm";
+import { and, desc, eq, count } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { applications, jobSkills, jobs, skills, users } from "../../db/schema/index.js";
+import { applications, jobSkills, jobs, users } from "../../db/schema/index.js";
 import { PERMISSIONS } from "../../config/permissions.js";
 import { conflict, idParam, notFound, parse } from "../../lib/http.js";
-import { normalizeSkill, resolveSkillIds } from "../../lib/skills.js";
+import { resolveSkillIds } from "../../lib/skills.js";
 import { can, requirePermission } from "../../middleware/auth.js";
-import { jobInputSchema, jobListQuerySchema, jobStatusSchema } from "./schema.js";
-import { applicationCountsForJobs, skillCountsForJobs, skillsForJobs } from "./stats.js";
+import { jobInputSchema, jobStatusSchema } from "./validations.js";
+import { listJobs, jobWithSkills } from "./helper.js";
+import { loadCandidateCards } from "../applications/service.js";
+import { getOrComputeMatchScore } from "../ai/service.js";
+import { applicationCountsForJobs, skillCountsForJobs } from "./stats.js";
 
-const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
-
-function filtersFromQuery(q: ReturnType<typeof jobListQuerySchema.parse>, publicOnly: boolean): SQL[] {
-    const where: SQL[] = [];
-    if (publicOnly) {
-        where.push(eq(jobs.status, "active"));
-        where.push(or(isNull(jobs.deadline), gte(jobs.deadline, sql`CURDATE()`))!);
-    } else if (q.status) {
-        where.push(eq(jobs.status, q.status));
-    }
-    if (q.q) {
-        const term = `%${escapeLike(q.q)}%`;
-        where.push(or(like(jobs.title, term), like(jobs.company, term), like(jobs.description, term))!);
-    }
-    if (q.location) where.push(like(jobs.location, `%${escapeLike(q.location)}%`));
-    if (q.jobType) where.push(eq(jobs.jobType, q.jobType));
-    if (q.experienceLevel) where.push(eq(jobs.experienceLevel, q.experienceLevel));
-    if (q.skill) {
-        where.push(
-            exists(
-                db
-                    .select({ one: sql`1` })
-                    .from(jobSkills)
-                    .innerJoin(skills, eq(skills.id, jobSkills.skillId))
-                    .where(and(eq(jobSkills.jobId, jobs.id), eq(skills.name, normalizeSkill(q.skill)))),
-            ),
-        );
-    }
-    return where;
-}
-
-const excerpt = (text: string, n = 220) => (text.length > n ? `${text.slice(0, n).trimEnd()}…` : text);
-
-async function listJobs(query: unknown, publicOnly: boolean) {
-    const q = parse(jobListQuerySchema, query);
-    const where = and(...filtersFromQuery(q, publicOnly));
-
-    const [{ total }] = await db.select({ total: count() }).from(jobs).where(where);
-    const rows = await db
-        .select()
-        .from(jobs)
-        .where(where)
-        .orderBy(desc(jobs.createdAt), desc(jobs.id))
-        .limit(q.limit)
-        .offset((q.page - 1) * q.limit);
-
-    const ids = rows.map((r) => r.id);
-    const skillMap = await skillsForJobs(ids);
-    const base = rows.map(({ description, requirements: _r, ...job }) => ({
-        ...job,
-        excerpt: excerpt(description),
-        skills: skillMap.get(job.id) ?? [],
-    }));
-
-    let items: any[] = base;
-    if (!publicOnly) {
-        const [counts, skillCounts] = await Promise.all([applicationCountsForJobs(ids), skillCountsForJobs(ids)]);
-        items = base.map((j) => ({
-            ...j,
-            applications: counts.get(j.id),
-            skillCounts: skillCounts.get(j.id) ?? [],
-        }));
-    }
-
-    return {
-        items,
-        page: q.page,
-        limit: q.limit,
-        total: Number(total),
-        totalPages: Math.max(1, Math.ceil(Number(total) / q.limit)),
-    };
-}
-
-async function jobWithSkills(id: number) {
-    const [job] = await db.select().from(jobs).where(eq(jobs.id, id)).limit(1);
-    if (!job) return null;
-    const skillMap = await skillsForJobs([id]);
-    return { ...job, skills: skillMap.get(id) ?? [] };
-}
 
 // ---------------- Public ----------------
 export const publicJobsRouter = Router();
@@ -113,8 +37,13 @@ publicJobsRouter.get("/:id", async (req, res) => {
             .limit(1);
         applied = !!a;
     }
+    const [{ n: totalApps }] = await db
+        .select({ n: count() })
+        .from(applications)
+        .where(eq(applications.jobId, id));
+
     const { createdBy: _c, ...safe } = job;
-    res.json({ job: safe, applied });
+    res.json({ job: { ...safe, applicantCount: Number(totalApps) }, applied, applicantCount: Number(totalApps) });
 });
 
 // ---------------- Admin ----------------
@@ -133,6 +62,60 @@ adminJobsRouter.post("/", requirePermission(PERMISSIONS.JOB_CREATE), async (req,
         return r.insertId;
     });
     res.status(201).json({ job: await jobWithSkills(id) });
+});
+
+adminJobsRouter.get("/:id/details", requirePermission(PERMISSIONS.JOB_VIEW_ALL), async (req, res) => {
+    const id = idParam(req.params.id);
+    const job = await jobWithSkills(id);
+    if (!job) throw notFound("Job not found");
+
+    // Fetch all applications for this job
+    const appRows = await db
+        .select({
+            id: applications.id,
+            candidateId: applications.candidateId,
+            status: applications.status,
+            coverLetter: applications.coverLetter,
+            reviewNote: applications.reviewNote,
+            createdAt: applications.createdAt,
+            candidateName: users.name,
+            candidateEmail: users.email,
+        })
+        .from(applications)
+        .innerJoin(users, eq(users.id, applications.candidateId))
+        .where(eq(applications.jobId, id))
+        .orderBy(desc(applications.createdAt));
+
+    const candidateIds = [...new Set(appRows.map((a) => a.candidateId))];
+    const cardMap = await loadCandidateCards(candidateIds);
+
+    const appsWithScores = await Promise.all(
+        appRows.map(async (a) => {
+            const card = cardMap.get(a.candidateId);
+            const matchScore = await getOrComputeMatchScore(id, a.candidateId, a.coverLetter);
+            return {
+                ...a,
+                headline: card?.headline || null,
+                skills: card?.skills || [],
+                experienceYears: card?.experienceYears || 0,
+                matchScore,
+            };
+        })
+    );
+
+    // Sort applicants by match score descending to suggest most matching candidates
+    const suggestions = [...appsWithScores]
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, 5);
+
+    const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, job.createdBy)).limit(1);
+
+    res.json({
+        job: { ...job, createdByName: creator?.name ?? null },
+        applications: appsWithScores,
+        suggestions,
+        totalApplications: appRows.length,
+    });
 });
 
 adminJobsRouter.get("/:id", requirePermission(PERMISSIONS.JOB_VIEW_ALL), async (req, res) => {

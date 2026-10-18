@@ -14,13 +14,13 @@ export async function skillsForJobs(jobIds: number[]): Promise<Map<number, strin
     return map;
 }
 
-export type ApplicationCounts = { total: number; pending: number; approved: number; rejected: number };
+export type ApplicationCounts = { total: number; pending: number; shortlisted: number; hired: number; rejected: number };
 export type SkillCount = { skill: string; count: number };
 
 /** Application totals (overall + per status) for each job. */
 export async function applicationCountsForJobs(jobIds: number[]): Promise<Map<number, ApplicationCounts>> {
     const map = new Map<number, ApplicationCounts>();
-    for (const id of jobIds) map.set(id, { total: 0, pending: 0, approved: 0, rejected: 0 });
+    for (const id of jobIds) map.set(id, { total: 0, pending: 0, shortlisted: 0, hired: 0, rejected: 0 });
     if (!jobIds.length) return map;
     const rows = await db
         .select({ jobId: applications.jobId, status: applications.status, n: count() })

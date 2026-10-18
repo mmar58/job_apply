@@ -16,6 +16,8 @@ import {
     Eye,
     ChevronRight,
     Loader2Icon,
+    Sparkles,
+    ArrowUpRight,
 } from "lucide-react";
 import { request, ApiError } from "@/lib/api-core";
 import { toast } from "sonner";
@@ -23,6 +25,9 @@ import { StatCard } from "./stat-card";
 import { StatusBadge } from "./status-badge";
 import { CreateJobModal } from "./create-job-modal";
 import { ReviewApplicationModal } from "./review-application-modal";
+import { AdminJobModal } from "./admin-job-modal";
+import { AdminCandidatesModal } from "./admin-candidates-modal";
+import { AdminCandidateProfileModal } from "./admin-candidate-profile-modal";
 import type { AdminDashboardData } from "@/lib/types";
 import DashboardTopBar from "./common/dashboard-top-bar";
 import DashboardSkelton from "./common/dashboard-skelton";
@@ -37,6 +42,9 @@ export function AdminDashboard() {
     // Modals state
     const [createJobOpen, setCreateJobOpen] = useState(false);
     const [reviewAppId, setReviewAppId] = useState<number | null>(null);
+    const [jobModalId, setJobModalId] = useState<number | null>(null);
+    const [candidatesModalOpen, setCandidatesModalOpen] = useState(false);
+    const [candidateProfileId, setCandidateProfileId] = useState<number | null>(null);
 
     const loadDashboard = async (silent = false) => {
         if (!silent) setLoading(true);
@@ -83,12 +91,14 @@ export function AdminDashboard() {
     }
 
     const jobs = data?.jobs ?? { draft: 0, active: 0, closed: 0, total: 0 };
-    const apps = data?.applications ?? { pending: 0, approved: 0, rejected: 0, total: 0 };
+    const apps = data?.applications ?? { pending: 0, shortlisted: 0, hired: 0, rejected: 0, total: 0 };
     const candidates = data?.candidates ?? 0;
     const recentApps = data?.recentApplications ?? [];
     const topJobs = data?.topJobs ?? [];
 
-    const approvalRate = apps.total > 0 ? Math.round((apps.approved / apps.total) * 100) : 0;
+    const hiredCount = apps.hired ?? (apps as any).approved ?? 0;
+    const shortlistedCount = apps.shortlisted ?? 0;
+    const hiredRate = apps.total > 0 ? Math.round((hiredCount / apps.total) * 100) : 0;
 
     return (
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8">
@@ -101,6 +111,12 @@ export function AdminDashboard() {
                         type: "button",
                         icon: <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />,
                         onClick: handleRefresh,
+                    },
+                    {
+                        label: "Candidates",
+                        type: "button",
+                        icon: <Users className="size-4" />,
+                        onClick: () => setCandidatesModalOpen(true),
                     },
                     {
                         label: "Public Board",
@@ -148,8 +164,12 @@ export function AdminDashboard() {
                                 {apps.pending} pending
                             </span>
                             <span>•</span>
-                            <span className="text-emerald-600">
-                                {apps.approved} approved
+                            <span className="text-indigo-600 font-medium">
+                                {shortlistedCount} shortlisted
+                            </span>
+                            <span>•</span>
+                            <span className="text-emerald-600 font-medium">
+                                {hiredCount} hired
                             </span>
                         </>
                     }
@@ -164,13 +184,13 @@ export function AdminDashboard() {
                 />
 
                 <StatCard
-                    title="Approval Rate"
-                    value={`${approvalRate}%`}
+                    title="Hiring Rate"
+                    value={`${hiredRate}%`}
                     icon={<TrendingUp className="size-5" />}
                     iconBg="bg-emerald-500/10 text-emerald-700"
                     subtitle={
                         <span>
-                            {apps.approved} approved of {apps.total} total
+                            {hiredCount} hired of {apps.total} total
                         </span>
                     }
                 />
@@ -211,11 +231,31 @@ export function AdminDashboard() {
                                         className="py-3.5 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] rounded-xl px-2 transition-colors"
                                     >
                                         <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-foreground text-sm truncate">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCandidateProfileId(app.candidateId)}
+                                                    className="font-bold text-foreground text-sm truncate hover:text-primary transition-colors cursor-pointer text-left"
+                                                    title="Click to view candidate profile"
+                                                >
                                                     {app.candidateName}
-                                                </span>
+                                                </button>
                                                 <StatusBadge status={app.status} />
+                                                {typeof app.matchScore === "number" && (
+                                                    <span
+                                                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                                                            app.matchScore >= 80
+                                                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                                                : app.matchScore >= 60
+                                                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                                                                : "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/25"
+                                                        }`}
+                                                        title="AI Match Score cached in Redis (48h sliding TTL)"
+                                                    >
+                                                        <Sparkles className="size-3" />
+                                                        <span>{app.matchScore}% Match</span>
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-2">
                                                 <span className="text-foreground/90 font-medium truncate">
@@ -286,15 +326,21 @@ export function AdminDashboard() {
                                     return (
                                         <div
                                             key={job.id}
-                                            className="p-3.5 rounded-xl border border-border/60 bg-background/50 hover:bg-background/90 transition-all space-y-2"
+                                            onClick={() => setJobModalId(job.id)}
+                                            className="p-3.5 rounded-xl border border-border/60 bg-background/50 hover:bg-background/90 hover:border-primary/50 transition-all space-y-2 cursor-pointer group"
+                                            title="Click to view applicants and AI suggestions for this position"
                                         >
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="min-w-0">
-                                                    <h4 className="text-sm font-semibold text-foreground truncate">
+                                                    <h4 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                                                         {job.title}
                                                     </h4>
-                                                    <div className="mt-1">
+                                                    <div className="mt-1 flex items-center gap-2">
                                                         <StatusBadge status={job.status} />
+                                                        <span className="text-[11px] text-primary group-hover:underline flex items-center gap-0.5">
+                                                            <span>Requisition &amp; Matches</span>
+                                                            <ArrowUpRight className="size-3" />
+                                                        </span>
                                                     </div>
                                                 </div>
                                                 <div className="text-right shrink-0">
@@ -344,6 +390,27 @@ export function AdminDashboard() {
                 applicationId={reviewAppId}
                 onClose={() => setReviewAppId(null)}
                 onReviewed={() => loadDashboard(true)}
+            />
+
+            <AdminJobModal
+                jobId={jobModalId}
+                isOpen={jobModalId !== null}
+                onClose={() => setJobModalId(null)}
+                onReviewApplicant={(id) => setReviewAppId(id)}
+                onViewCandidate={(id) => setCandidateProfileId(id)}
+            />
+
+            <AdminCandidatesModal
+                isOpen={candidatesModalOpen}
+                onClose={() => setCandidatesModalOpen(false)}
+                onSelectCandidate={(id) => setCandidateProfileId(id)}
+            />
+
+            <AdminCandidateProfileModal
+                candidateId={candidateProfileId}
+                isOpen={candidateProfileId !== null}
+                onClose={() => setCandidateProfileId(null)}
+                onReviewApplication={(id) => setReviewAppId(id)}
             />
         </div>
     );

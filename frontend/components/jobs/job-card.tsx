@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, MapPin, DollarSign, Calendar, ArrowUpRight } from "lucide-react";
+import { Building2, MapPin, DollarSign, Calendar, ArrowUpRight, Users } from "lucide-react";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import type { JobItem } from "@/lib/types";
 
@@ -93,9 +93,18 @@ export function JobCard({ job, onViewDetails, onApply }: JobCardProps) {
 
             {/* Footer with Actions */}
             <div className="pt-4 border-t border-border/60 flex items-center justify-between gap-3">
-                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
+                    {typeof job.applicantCount === "number" && (
+                        <span className="font-semibold text-foreground/85 flex items-center gap-1">
+                            <Users className="size-3.5 text-primary" />
+                            <span>
+                                {job.applicantCount} {job.applicantCount === 1 ? "applicant" : "applicants"}
+                            </span>
+                            <span>•</span>
+                        </span>
+                    )}
                     {job.deadline ? (
-                        <>
+                        <span className="flex items-center gap-1">
                             <Calendar className="size-3.5 text-muted-foreground" />
                             <span>
                                 Closes{" "}
@@ -104,7 +113,7 @@ export function JobCard({ job, onViewDetails, onApply }: JobCardProps) {
                                     day: "numeric",
                                 })}
                             </span>
-                        </>
+                        </span>
                     ) : (
                         <span>Open for applications</span>
                     )}

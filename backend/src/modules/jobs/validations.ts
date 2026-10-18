@@ -1,18 +1,7 @@
 import { z } from "zod";
 import { experienceLevels, jobStatuses, jobTypes } from "../../db/schema/index.js";
-
-const optionalInt = z.preprocess(
-    (v) => (v === "" || v === null || v === undefined ? null : v),
-    z.coerce.number().int().min(0).nullable(),
-);
-
-const optionalDate = z.preprocess(
-    (v) => (v === "" || v === null || v === undefined ? null : v),
-    z
-        .string()
-        .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
-        .nullable(),
-);
+import { optionalDate, optionalInt } from "../../lib/schema/general-schema.js";
+import { querySchema, paginationSchema } from "../../lib/schema/application-schema.js";
 
 export const jobInputSchema = z
     .object({
@@ -37,12 +26,12 @@ export const jobInputSchema = z
 export const jobStatusSchema = z.object({ status: z.enum(jobStatuses) });
 
 export const jobListQuerySchema = z.object({
-    q: z.string().trim().max(100).optional(),
+    q: querySchema,
     location: z.string().trim().max(100).optional(),
     jobType: z.enum(jobTypes).optional(),
     experienceLevel: z.enum(experienceLevels).optional(),
     skill: z.string().trim().max(80).optional(),
     status: z.enum(jobStatuses).optional(), // admin list only
-    page: z.coerce.number().int().min(1).default(1),
+    page: paginationSchema,
     limit: z.coerce.number().int().min(1).max(50).default(12),
 });

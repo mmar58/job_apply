@@ -1,20 +1,37 @@
 import { Router } from "express";
 import argon2 from "argon2";
 import { desc, eq, inArray } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "../../db/index.js";
 import { roles, userRoles, users } from "../../db/schema/index.js";
 import { PERMISSIONS } from "../../config/permissions.js";
-import { badRequest, conflict, parse } from "../../lib/http.js";
+import { badRequest, conflict, idParam, parse } from "../../lib/http.js";
 import { requirePermission } from "../../middleware/auth.js";
+import { createUserSchema } from "./validations.js";
+import { fetchCandidateProfile, fetchCandidatesList } from "./service.js";
 
 export const usersRouter = Router();
+export const adminCandidatesRouter = Router();
 
-const createUserSchema = z.object({
-    name: z.string().trim().min(2).max(150),
-    email: z.string().trim().toLowerCase().max(255).pipe(z.email()),
-    password: z.string().min(8).max(128),
-    role: z.string().trim().min(1).default("admin"),
+adminCandidatesRouter.get("/", requirePermission(PERMISSIONS.USER_VIEW), async (_req, res) => {
+    const candidates = await fetchCandidatesList();
+    res.json({ candidates });
+});
+
+adminCandidatesRouter.get("/:id", requirePermission(PERMISSIONS.USER_VIEW), async (req, res) => {
+    const candidateId = idParam(req.params.id);
+    const candidate = await fetchCandidateProfile(candidateId);
+    res.json({ candidate });
+});
+
+usersRouter.get("/candidates", requirePermission(PERMISSIONS.USER_VIEW), async (_req, res) => {
+    const candidates = await fetchCandidatesList();
+    res.json({ candidates });
+});
+
+usersRouter.get("/candidates/:id", requirePermission(PERMISSIONS.USER_VIEW), async (req, res) => {
+    const candidateId = idParam(req.params.id);
+    const candidate = await fetchCandidateProfile(candidateId);
+    res.json({ candidate });
 });
 
 usersRouter.get("/roles", requirePermission(PERMISSIONS.USER_VIEW), async (_req, res) => {

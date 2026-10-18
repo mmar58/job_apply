@@ -3,7 +3,7 @@ import { jobs } from "./jobs.js";
 import { users } from "./users.js";
 import { timestamps } from "./timestamps.js";
 
-export const applicationStatuses = ["pending", "approved", "rejected"] as const;
+export const applicationStatuses = ["pending", "shortlisted", "hired", "rejected"] as const;
 
 export const applications = mysqlTable("applications",
     {

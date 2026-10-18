@@ -16,12 +16,14 @@ import {
     FileText,
     Building2,
     ChevronRight,
+    Eye,
 } from "lucide-react";
 import { request, ApiError } from "@/lib/api-core";
 import { toast } from "sonner";
 import { StatCard } from "./stat-card";
 import { StatusBadge } from "./status-badge";
 import { CandidateProfileModal } from "./candidate-profile-modal";
+import { CandidateAppliedJobModal } from "./candidate-applied-job-modal";
 import type { CandidateDashboardData } from "@/lib/types";
 import DashboardTopBar from "./common/dashboard-top-bar"
 import DashboardSkelton from "./common/dashboard-skelton";
@@ -35,6 +37,7 @@ export function CandidateDashboard() {
 
     // Profile modal state
     const [profileModalOpen, setProfileModalOpen] = useState(false);
+    const [selectedAppId, setSelectedAppId] = useState<number | null>(null);
 
     const loadDashboard = async (silent = false) => {
         if (!silent) setLoading(true);
@@ -80,10 +83,13 @@ export function CandidateDashboard() {
         );
     }
 
-    const apps = data?.applications ?? { pending: 0, approved: 0, rejected: 0, total: 0 };
+    const apps = data?.applications ?? { pending: 0, shortlisted: 0, hired: 0, rejected: 0, total: 0 };
     const recentApps = data?.recentApplications ?? [];
     const completeness = data?.profileCompleteness ?? 0;
     const openJobs = data?.openJobs ?? 0;
+
+    const hiredCount = apps.hired ?? (apps as any).approved ?? 0;
+    const shortlistedCount = apps.shortlisted ?? 0;
 
     return (
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8">
@@ -125,11 +131,13 @@ export function CandidateDashboard() {
                                 {apps.pending} in review
                             </span>
                             <span>•</span>
-                            <span className="text-emerald-600">
-                                {apps.approved} accepted
+                            <span className="text-indigo-600 font-medium">
+                                {shortlistedCount} shortlisted
                             </span>
                             <span>•</span>
-                            <span>{apps.rejected} closed</span>
+                            <span className="text-emerald-600 font-medium">
+                                {hiredCount} hired
+                            </span>
                         </>
                     }
                 />
@@ -247,12 +255,13 @@ export function CandidateDashboard() {
                         {recentApps.map((app) => (
                             <div
                                 key={app.id}
-                                className="p-4 sm:p-5 rounded-2xl border border-border/70 bg-background/50 hover:bg-background/90 hover:border-border transition-all flex flex-col justify-between space-y-4"
+                                onClick={() => setSelectedAppId(app.id)}
+                                className="p-4 sm:p-5 rounded-2xl border border-border/70 bg-background/50 hover:bg-background/90 hover:border-primary/50 transition-all flex flex-col justify-between space-y-4 cursor-pointer group"
                             >
                                 <div className="space-y-2">
                                     <div className="flex items-start justify-between gap-2">
                                         <div>
-                                            <h4 className="font-bold text-foreground text-base tracking-tight">
+                                            <h4 className="font-bold text-foreground text-base tracking-tight group-hover:text-primary transition-colors">
                                                 {app.jobTitle}
                                             </h4>
                                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
@@ -277,13 +286,17 @@ export function CandidateDashboard() {
                                         </span>
                                     </div>
 
-                                    <Link
-                                        href={`/jobs`}
-                                        className="font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedAppId(app.id);
+                                        }}
+                                        className="font-semibold text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
                                     >
-                                        <span>View Job</span>
+                                        <span>View Details</span>
                                         <ChevronRight className="size-3" />
-                                    </Link>
+                                    </button>
                                 </div>
                             </div>
                         ))}
@@ -319,6 +332,13 @@ export function CandidateDashboard() {
                 isOpen={profileModalOpen}
                 onClose={() => setProfileModalOpen(false)}
                 onSuccess={() => loadDashboard(true)}
+            />
+
+            {/* Candidate Applied Job Detail Modal */}
+            <CandidateAppliedJobModal
+                applicationId={selectedAppId}
+                isOpen={selectedAppId !== null}
+                onClose={() => setSelectedAppId(null)}
             />
         </div>
     );

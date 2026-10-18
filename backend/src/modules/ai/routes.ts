@@ -1,29 +1,20 @@
 import { Router } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "../../db/index.js";
 import { applications, candidateSkills, jobSkills, jobs } from "../../db/schema/index.js";
 import { PERMISSIONS } from "../../config/permissions.js";
-import { badRequest, idParam, notFound, parse } from "../../lib/http.js";
+import { idParam, notFound, parse } from "../../lib/http.js";
 import { requirePermission } from "../../middleware/auth.js";
-import { loadCandidateCards, matchSkills, type CandidateCard } from "../applications/service.js";
+import { forModel } from "./service.js";
+import { loadCandidateCards, matchSkills } from "../applications/service.js";
 import { skillsForJobs } from "../jobs/stats.js";
 import { asData, generateJson } from "./gemini.js";
+import { generateSchema, generatedJobSchema, suggestQuerySchema, rankingSchema } from "./validations.js";
 
 export const aiRouter = Router();
 aiRouter.use(requirePermission(PERMISSIONS.AI_USE));
 
-// ---------- 1. Generate a job description from a short prompt ----------
-const generateSchema = z.object({ prompt: z.string().trim().min(5).max(1500) });
-const generatedJobSchema = z.object({
-    title: z.string(),
-    description: z.string(),
-    requirements: z.string(),
-    skills: z.array(z.string()).default([]),
-    jobType: z.enum(["full_time", "part_time", "contract", "internship", "remote"]).optional(),
-    experienceLevel: z.enum(["entry", "mid", "senior", "lead"]).optional(),
-});
-
+//Generate a job description from a short prompt
 aiRouter.post("/job-description", async (req, res) => {
     const { prompt } = parse(generateSchema, req.body);
     const result = await generateJson({
@@ -36,31 +27,7 @@ Do not invent salary, company perks or legal claims.`,
     res.json({ job: { ...result, skills: result.skills.slice(0, 15) } });
 });
 
-// ---------- 2. Rank / suggest best candidates for a job ----------
-const suggestQuerySchema = z.object({
-    scope: z.enum(["applicants", "all"]).default("applicants"),
-    limit: z.coerce.number().int().min(1).max(20).default(10),
-});
-const rankingSchema = z.object({
-    ranking: z.array(
-        z.object({
-            candidateId: z.coerce.number(),
-            score: z.coerce.number().min(0).max(100),
-            reasoning: z.string(),
-        }),
-    ),
-});
 
-const forModel = (c: CandidateCard) => ({
-    candidateId: c.id,
-    headline: c.headline,
-    bio: c.bio?.slice(0, 800) ?? null,
-    experienceYears: c.experienceYears,
-    education: c.education?.slice(0, 500) ?? null,
-    experience: c.experience?.slice(0, 1200) ?? null,
-    skills: c.skills,
-    // Intentionally excludes name, email and phone.
-});
 
 aiRouter.get("/jobs/:id/suggest-candidates", async (req, res) => {
     const jobId = idParam(req.params.id);
@@ -141,33 +108,17 @@ Only include candidateIds from the provided list. Order from best to worst. Be f
     res.json({ suggestions });
 });
 
-// ---------- 3. Summarize a candidate (in the context of an application) ----------
-const summarySchema = z.object({
-    summary: z.string(),
-    strengths: z.array(z.string()).default([]),
-    concerns: z.array(z.string()).default([]),
-    fitScore: z.coerce.number().min(0).max(100).optional(),
-});
+import { getOrComputeMatchScore, getOrComputeSummaryAndFeedback } from "./service.js";
 
 aiRouter.get("/applications/:id/summary", async (req, res) => {
     const id = idParam(req.params.id);
-    const [a] = await db.select().from(applications).where(eq(applications.id, id)).limit(1);
-    if (!a) throw notFound("Application not found");
-    const [job] = await db.select().from(jobs).where(eq(jobs.id, a.jobId)).limit(1);
-    const candidate = (await loadCandidateCards([a.candidateId])).get(a.candidateId);
-    if (!candidate || !job) throw badRequest("Missing candidate or job data");
-    const requiredSkills = (await skillsForJobs([job.id])).get(job.id) ?? [];
+    const data = await getOrComputeSummaryAndFeedback(id);
+    res.json(data);
+});
 
-    const result = await generateJson({
-        system: `You are a recruiting assistant. Summarise a job candidate for a hiring manager.
-Return JSON: {"summary": string (3-4 sentences), "strengths": string[] (max 4), "concerns": string[] (max 3, e.g. missing skills, gaps), "fitScore": number 0-100 for fit with the job}.
-Base everything only on the provided data. Do not speculate about protected characteristics.`,
-        prompt: `Job:\n${asData({
-            title: job.title,
-            requirements: job.requirements.slice(0, 2000),
-            requiredSkills,
-        })}\n\nCandidate:\n${asData({ ...forModel(candidate), coverLetter: a.coverLetter.slice(0, 3000) })}`,
-        schema: summarySchema,
-    });
-    res.json({ ...result, matchedSkills: matchSkills(requiredSkills, candidate.skills).matched });
+aiRouter.get("/jobs/:id/match-score/:candidateId", async (req, res) => {
+    const jobId = idParam(req.params.id);
+    const candidateId = idParam(req.params.candidateId);
+    const score = await getOrComputeMatchScore(jobId, candidateId);
+    res.json({ jobId, candidateId, score });
 });

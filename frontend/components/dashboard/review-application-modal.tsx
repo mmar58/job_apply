@@ -1,7 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Loader2Icon, CheckCircle2, XCircle, Clock, FileText, User, Mail, MapPin } from "lucide-react";
+import {
+    X,
+    Loader2Icon,
+    CheckCircle2,
+    XCircle,
+    Clock,
+    FileText,
+    User,
+    Mail,
+    Sparkles,
+    BookmarkCheck,
+    Award,
+} from "lucide-react";
 import { request, ApiError } from "@/lib/api-core";
 import { toast } from "sonner";
 import { StatusBadge } from "./status-badge";
@@ -40,6 +52,14 @@ interface ApplicationDetailData {
     matchedSkills?: string[];
 }
 
+interface AiSummaryResult {
+    summary: string;
+    strengths: string[];
+    concerns: string[];
+    feedback?: string;
+    fitScore?: number;
+}
+
 export function ReviewApplicationModal({
     applicationId,
     onClose,
@@ -51,10 +71,15 @@ export function ReviewApplicationModal({
     const [reviewNote, setReviewNote] = useState("");
     const [error, setError] = useState<string | null>(null);
 
+    // AI Summary & Feedback state (Cached in Redis for 20 minutes)
+    const [aiSummary, setAiSummary] = useState<AiSummaryResult | null>(null);
+    const [loadingAi, setLoadingAi] = useState(false);
+
     useEffect(() => {
         if (!applicationId) return;
         setLoading(true);
         setError(null);
+        setAiSummary(null);
         request<ApplicationDetailData>(`/admin/applications/${applicationId}`)
             .then((res) => {
                 setData(res);
@@ -66,9 +91,23 @@ export function ReviewApplicationModal({
             .finally(() => setLoading(false));
     }, [applicationId]);
 
+    const handleFetchAiSummary = async () => {
+        if (!applicationId) return;
+        setLoadingAi(true);
+        try {
+            const res = await request<AiSummaryResult>(`/ai/applications/${applicationId}/summary`);
+            setAiSummary(res);
+            toast.success("AI feedback loaded (cached for 20m in Redis)");
+        } catch (err) {
+            toast.error(err instanceof ApiError ? err.message : "Failed to generate AI feedback");
+        } finally {
+            setLoadingAi(false);
+        }
+    };
+
     if (!applicationId) return null;
 
-    const handleUpdateStatus = async (status: "approved" | "rejected" | "pending") => {
+    const handleUpdateStatus = async (status: ApplicationStatus) => {
         setUpdating(true);
         setError(null);
         try {
@@ -91,7 +130,7 @@ export function ReviewApplicationModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="relative w-full max-w-2xl bg-card text-card-foreground rounded-2xl sm:rounded-3xl shadow-2xl border border-border max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="relative w-full max-w-3xl bg-card text-card-foreground rounded-2xl sm:rounded-3xl shadow-2xl border border-border max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-background/50">
                     <div className="flex items-center gap-2">
@@ -106,7 +145,7 @@ export function ReviewApplicationModal({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
+                        className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                     >
                         <X className="size-5" />
                     </button>
@@ -159,13 +198,76 @@ export function ReviewApplicationModal({
                                         {data.job?.company}
                                     </div>
                                     <div className="mt-2 flex items-center gap-2">
-                                        <span className="text-xs text-muted-foreground">Current:</span>
+                                        <span className="text-xs text-muted-foreground">Current Status:</span>
                                         <StatusBadge status={data.application.status} />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Skills Match if any */}
+                            {/* AI Summary / Feedback Card (20m Redis Cache) */}
+                            <div className="p-4 rounded-2xl border border-primary/20 bg-primary/5 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Sparkles className="size-4 text-primary" />
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                                            AI Profile Summary & Job Fit (Redis 20m Cache)
+                                        </h4>
+                                    </div>
+                                    {!aiSummary && (
+                                        <button
+                                            type="button"
+                                            onClick={handleFetchAiSummary}
+                                            disabled={loadingAi}
+                                            className="px-3 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-60"
+                                        >
+                                            {loadingAi ? (
+                                                <Loader2Icon className="size-3.5 animate-spin" />
+                                            ) : (
+                                                <Sparkles className="size-3.5" />
+                                            )}
+                                            <span>Generate AI Feedback</span>
+                                        </button>
+                                    )}
+                                </div>
+
+                                {aiSummary && (
+                                    <div className="space-y-3 text-xs text-foreground/90 pt-1">
+                                        <p className="leading-relaxed">{aiSummary.summary}</p>
+                                        {aiSummary.strengths && aiSummary.strengths.length > 0 && (
+                                            <div>
+                                                <span className="font-semibold text-emerald-700 dark:text-emerald-400 block mb-1">
+                                                    Strengths:
+                                                </span>
+                                                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                                                    {aiSummary.strengths.map((s, idx) => (
+                                                        <li key={idx}>{s}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {aiSummary.concerns && aiSummary.concerns.length > 0 && (
+                                            <div>
+                                                <span className="font-semibold text-amber-700 dark:text-amber-400 block mb-1">
+                                                    Considerations / Gaps:
+                                                </span>
+                                                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                                                    {aiSummary.concerns.map((c, idx) => (
+                                                        <li key={idx}>{c}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {aiSummary.feedback && (
+                                            <div className="p-2.5 rounded-lg bg-card border border-border/80">
+                                                <strong className="text-primary block mb-0.5">Advice / Feedback:</strong>
+                                                <p className="text-muted-foreground">{aiSummary.feedback}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Matched Skills */}
                             {data.matchedSkills && data.matchedSkills.length > 0 && (
                                 <div>
                                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -187,9 +289,9 @@ export function ReviewApplicationModal({
                             {/* Cover Letter */}
                             <div>
                                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                                    Cover Letter
+                                    Submitted Cover Letter
                                 </h4>
-                                <div className="p-4 rounded-xl bg-background/80 border border-border text-sm text-foreground leading-relaxed whitespace-pre-wrap max-h-56 overflow-y-auto">
+                                <div className="p-4 rounded-xl bg-background/80 border border-border text-sm text-foreground leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
                                     {data.application.coverLetter}
                                 </div>
                             </div>
@@ -197,13 +299,13 @@ export function ReviewApplicationModal({
                             {/* Review Note */}
                             <div>
                                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                                    Feedback / Review Note (Optional)
+                                    Review Note / Hiring Feedback (Optional)
                                 </label>
                                 <textarea
                                     rows={2}
                                     value={reviewNote}
                                     onChange={(e) => setReviewNote(e.target.value)}
-                                    placeholder="Add notes for the candidate or internal hiring record..."
+                                    placeholder="Add notes for candidate feedback or internal record..."
                                     className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background/60 focus:bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                                 />
                             </div>
@@ -217,33 +319,47 @@ export function ReviewApplicationModal({
                         type="button"
                         onClick={onClose}
                         disabled={updating}
-                        className="px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                        className="px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
                     >
                         Close
                     </button>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Reject */}
                         <button
                             type="button"
                             disabled={updating || data?.application.status === "rejected"}
                             onClick={() => handleUpdateStatus("rejected")}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-500/15 text-rose-700 dark:text-rose-400 hover:bg-rose-500/25 border border-rose-500/20 text-sm font-semibold transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/15 text-rose-700 dark:text-rose-400 hover:bg-rose-500/25 border border-rose-500/20 text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                         >
                             <XCircle className="size-4" />
                             Reject
                         </button>
+
+                        {/* Shortlist */}
                         <button
                             type="button"
-                            disabled={updating || data?.application.status === "approved"}
-                            onClick={() => handleUpdateStatus("approved")}
-                            className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-semibold shadow-sm transition-all disabled:opacity-50"
+                            disabled={updating || data?.application.status === "shortlisted"}
+                            onClick={() => handleUpdateStatus("shortlisted")}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-500/25 border border-indigo-500/20 text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                            <BookmarkCheck className="size-4" />
+                            Shortlist
+                        </button>
+
+                        {/* Hire */}
+                        <button
+                            type="button"
+                            disabled={updating || data?.application.status === "hired"}
+                            onClick={() => handleUpdateStatus("hired")}
+                            className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs sm:text-sm font-semibold shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                         >
                             {updating ? (
                                 <Loader2Icon className="size-4 animate-spin" />
                             ) : (
-                                <CheckCircle2 className="size-4" />
+                                <Award className="size-4" />
                             )}
-                            Approve
+                            Hire
                         </button>
                     </div>
                 </div>

@@ -9,7 +9,7 @@ import { requireCustomHeader } from "./middleware/security.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { attachUser, requireAuth } from "./middleware/auth.js";
 import { authRouter } from "./modules/auth/routes.js";
-import { usersRouter } from "./modules/users/routes.js";
+import { usersRouter, adminCandidatesRouter } from "./modules/users/routes.js";
 import { candidateRouter } from "./modules/candidates/routes.js";
 import { adminJobsRouter, publicJobsRouter } from "./modules/jobs/routes.js";
 import { adminApplicationsRouter, candidateApplicationsRouter } from "./modules/applications/routes.js";
@@ -74,6 +74,7 @@ export function createApp() {
     app.use("/api/v1/admin/jobs", requireAuth, adminJobsRouter);
     app.use("/api/v1/admin/applications", requireAuth, adminApplicationsRouter);
     app.use("/api/v1/admin/users", requireAuth, usersRouter);
+    app.use("/api/v1/admin/candidates", requireAuth, adminCandidatesRouter);
     app.use("/api/v1/ai", requireAuth, aiLimiter, aiRouter);
 
     app.use(notFoundHandler)

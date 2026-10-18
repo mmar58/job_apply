@@ -1,27 +1,11 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { candidateProfiles, candidateSkills, skills, users } from "../../db/schema/index.js";
-
-export type CandidateCard = {
-    id: number;
-    name: string;
-    email: string;
-    headline: string | null;
-    bio: string | null;
-    phone: string | null;
-    address: string | null;
-    experienceYears: number;
-    education: string | null;
-    experience: string | null;
-    linkedinUrl: string | null;
-    githubUrl: string | null;
-    portfolioUrl: string | null;
-    skills: string[];
-};
+import type { CandidateProfileType } from "../../types/profile.js";
 
 /** Candidate user + profile + skills for the given ids. */
-export async function loadCandidateCards(ids: number[]): Promise<Map<number, CandidateCard>> {
-    const map = new Map<number, CandidateCard>();
+export async function loadCandidateCards(ids: number[]): Promise<Map<number, CandidateProfileType>> {
+    const map = new Map<number, CandidateProfileType>();
     if (!ids.length) return map;
 
     const rows = await db

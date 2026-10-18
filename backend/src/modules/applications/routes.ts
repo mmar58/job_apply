@@ -4,27 +4,13 @@ import { z } from "zod";
 import { db } from "../../db/index.js";
 import { applicationStatuses, applications, jobs, users } from "../../db/schema/index.js";
 import { PERMISSIONS } from "../../config/permissions.js";
-import { conflict, idParam, notFound, parse } from "../../lib/http.js";
+import { conflict, forbidden, idParam, notFound, parse } from "../../lib/http.js";
 import { requirePermission } from "../../middleware/auth.js";
-import { skillsForJobs } from "../jobs/stats.js";
+import { applicationCountsForJobs, skillsForJobs } from "../jobs/stats.js";
 import { loadCandidateCards, matchSkills } from "./service.js";
-
-const applySchema = z.object({
-    coverLetter: z.string().trim().min(30, "Please write at least a few sentences").max(5000),
-});
-
-const reviewSchema = z.object({
-    status: z.enum(["approved", "rejected", "pending"]),
-    note: z.string().trim().max(2000).optional().nullable(),
-});
-
-const listQuerySchema = z.object({
-    status: z.enum(applicationStatuses).optional(),
-    jobId: z.coerce.number().int().positive().optional(),
-    q: z.string().trim().max(100).optional(),
-    page: z.coerce.number().int().min(1).default(1),
-    limit: z.coerce.number().int().min(1).max(100).default(20),
-});
+import { getCandidateProfile } from "../candidates/service.js";
+import { calculateProfileCompleteness } from "../../helper/profile.js";
+import { applySchema, listQuerySchema, reviewSchema } from "./validations.js";
 
 // ---------------- Candidate ----------------
 export const candidateApplicationsRouter = Router();
@@ -33,6 +19,13 @@ candidateApplicationsRouter.post("/jobs/:id/apply", requirePermission(PERMISSION
     const jobId = idParam(req.params.id);
     const { coverLetter } = parse(applySchema, req.body);
     const candidateId = req.user!.id;
+
+    // Check Candidate Profile Completeness (> 50%)
+    const profile = await getCandidateProfile(candidateId);
+    const completeness = calculateProfileCompleteness(profile);
+    if (completeness <= 50) {
+        throw forbidden("Your profile must be more than 50% complete before applying. Please complete your profile first.");
+    }
 
     const [job] = await db
         .select({ id: jobs.id })
@@ -81,7 +74,57 @@ candidateApplicationsRouter.get(
             .innerJoin(jobs, eq(jobs.id, applications.jobId))
             .where(eq(applications.candidateId, req.user!.id))
             .orderBy(desc(applications.createdAt));
-        res.json({ applications: rows });
+
+        const jobIds = [...new Set(rows.map((r) => r.jobId))];
+        const countMap = await applicationCountsForJobs(jobIds);
+
+        const applicationsWithCounts = rows.map((r) => ({
+            ...r,
+            totalApplications: countMap.get(r.jobId)?.total ?? 1,
+        }));
+
+        res.json({ applications: applicationsWithCounts });
+    },
+);
+
+candidateApplicationsRouter.get(
+    "/candidate/applications/:id",
+    requirePermission(PERMISSIONS.APPLICATION_VIEW_OWN),
+    async (req, res) => {
+        const id = idParam(req.params.id);
+        const [app] = await db
+            .select({
+                id: applications.id,
+                status: applications.status,
+                coverLetter: applications.coverLetter,
+                reviewNote: applications.reviewNote,
+                reviewedAt: applications.reviewedAt,
+                createdAt: applications.createdAt,
+                jobId: applications.jobId,
+            })
+            .from(applications)
+            .where(and(eq(applications.id, id), eq(applications.candidateId, req.user!.id)))
+            .limit(1);
+
+        if (!app) throw notFound("Application not found");
+
+        const [job] = await db.select().from(jobs).where(eq(jobs.id, app.jobId)).limit(1);
+        if (!job) throw notFound("Associated job not found");
+
+        const skillMap = await skillsForJobs([app.jobId]);
+        const [{ n: totalApps }] = await db
+            .select({ n: count() })
+            .from(applications)
+            .where(eq(applications.jobId, app.jobId));
+
+        res.json({
+            application: app,
+            job: {
+                ...job,
+                skills: skillMap.get(app.jobId) ?? [],
+            },
+            totalApplications: Number(totalApps),
+        });
     },
 );
 
