@@ -24,22 +24,22 @@ CREATE TABLE `user_roles` (
 	CONSTRAINT `user_roles_user_id_role_id_pk` PRIMARY KEY(`user_id`,`role_id`)
 );
 --> statement-breakpoint
-CREATE TABLE `permisions` (
+CREATE TABLE `permissions` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`key` varchar(100) NOT NULL,
 	`description` varchar(255),
-	CONSTRAINT `permisions_id` PRIMARY KEY(`id`),
-	CONSTRAINT `permisions_key_unique` UNIQUE(`key`)
+	CONSTRAINT `permissions_id` PRIMARY KEY(`id`),
+	CONSTRAINT `permissions_key_unique` UNIQUE(`key`)
 );
 --> statement-breakpoint
-CREATE TABLE `role_permision` (
+CREATE TABLE `role_permissions` (
 	`role_id` int NOT NULL,
-	`permision_id` int NOT NULL,
-	CONSTRAINT `role_permision_role_id_permision_id_pk` PRIMARY KEY(`role_id`,`permision_id`)
+	`permission_id` int NOT NULL,
+	CONSTRAINT `role_permissions_role_id_permission_id_pk` PRIMARY KEY(`role_id`,`permission_id`)
 );
 --> statement-breakpoint
 CREATE TABLE `candidate_profiles` (
-	`id` int NOT NULL,
+	`user_id` int NOT NULL,
 	`headline` varchar(200),
 	`bio` text,
 	`phone` varchar(20),
@@ -52,7 +52,7 @@ CREATE TABLE `candidate_profiles` (
 	`portfolio_url` varchar(255),
 	`created_at` timestamp NOT NULL DEFAULT (now()),
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	CONSTRAINT `candidate_profiles_id` PRIMARY KEY(`id`)
+	CONSTRAINT `candidate_profiles_user_id` PRIMARY KEY(`user_id`)
 );
 --> statement-breakpoint
 CREATE TABLE `candidate_skills` (
@@ -111,9 +111,9 @@ CREATE TABLE `applications` (
 --> statement-breakpoint
 ALTER TABLE `user_roles` ADD CONSTRAINT `user_roles_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `user_roles` ADD CONSTRAINT `user_roles_role_id_roles_id_fk` FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `role_permision` ADD CONSTRAINT `role_permision_role_id_roles_id_fk` FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `role_permision` ADD CONSTRAINT `role_permision_permision_id_permisions_id_fk` FOREIGN KEY (`permision_id`) REFERENCES `permisions`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `candidate_profiles` ADD CONSTRAINT `candidate_profiles_id_users_id_fk` FOREIGN KEY (`id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `role_permissions` ADD CONSTRAINT `role_permissions_role_id_roles_id_fk` FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `role_permissions` ADD CONSTRAINT `role_permissions_permission_id_permissions_id_fk` FOREIGN KEY (`permission_id`) REFERENCES `permissions`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `candidate_profiles` ADD CONSTRAINT `candidate_profiles_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `candidate_skills` ADD CONSTRAINT `candidate_skills_candidate_id_users_id_fk` FOREIGN KEY (`candidate_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `candidate_skills` ADD CONSTRAINT `candidate_skills_skill_id_skills_id_fk` FOREIGN KEY (`skill_id`) REFERENCES `skills`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE `job_skills` ADD CONSTRAINT `job_skills_job_id_jobs_id_fk` FOREIGN KEY (`job_id`) REFERENCES `jobs`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

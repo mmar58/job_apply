@@ -8,6 +8,8 @@ import { loadAuthUser, requireAuth } from "../../middleware/auth.js";
 import { conflict, parse, unauthorized } from "../../lib/http.js";
 import { DEFAULT_SIGNUP_ROLE } from "../../config/permissions.js";
 
+import { SESSION_COOKIE } from "../../app.js";
+
 export const authRouter = Router();
 
 const registerSchema = z.object({
@@ -71,6 +73,7 @@ authRouter.post("/register", async (req, res) => {
 })
 
 authRouter.post("/login", async (req, res) => {
+    console.log("login request: ", req.body);
     const input = parse(loginSchema, req.body);
     const [user] = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
 
@@ -85,7 +88,7 @@ authRouter.post("/login", async (req, res) => {
 authRouter.post("/logout", (req, res, next) => {
     req.session.destroy((err) => {
         if (err) return next(err);
-        res.clearCookie("anz.sid");
+        res.clearCookie(SESSION_COOKIE);
         res.json({ ok: true });
     });
 });

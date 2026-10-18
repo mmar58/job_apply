@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "6b556967-c04f-4e31-94c3-7831ec76e2df",
+  "id": "28939631-6b1d-420d-9e46-22c975d8f0b0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "users": {
@@ -185,8 +185,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "permisions": {
-      "name": "permisions",
+    "permissions": {
+      "name": "permissions",
       "columns": {
         "id": {
           "name": "id",
@@ -213,16 +213,16 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "permisions_id": {
-          "name": "permisions_id",
+        "permissions_id": {
+          "name": "permissions_id",
           "columns": [
             "id"
           ]
         }
       },
       "uniqueConstraints": {
-        "permisions_key_unique": {
-          "name": "permisions_key_unique",
+        "permissions_key_unique": {
+          "name": "permissions_key_unique",
           "columns": [
             "key"
           ]
@@ -230,8 +230,8 @@
       },
       "checkConstraint": {}
     },
-    "role_permision": {
-      "name": "role_permision",
+    "role_permissions": {
+      "name": "role_permissions",
       "columns": {
         "role_id": {
           "name": "role_id",
@@ -240,8 +240,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "permision_id": {
-          "name": "permision_id",
+        "permission_id": {
+          "name": "permission_id",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
@@ -250,9 +250,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "role_permision_role_id_roles_id_fk": {
-          "name": "role_permision_role_id_roles_id_fk",
-          "tableFrom": "role_permision",
+        "role_permissions_role_id_roles_id_fk": {
+          "name": "role_permissions_role_id_roles_id_fk",
+          "tableFrom": "role_permissions",
           "tableTo": "roles",
           "columnsFrom": [
             "role_id"
@@ -263,12 +263,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "role_permision_permision_id_permisions_id_fk": {
-          "name": "role_permision_permision_id_permisions_id_fk",
-          "tableFrom": "role_permision",
-          "tableTo": "permisions",
+        "role_permissions_permission_id_permissions_id_fk": {
+          "name": "role_permissions_permission_id_permissions_id_fk",
+          "tableFrom": "role_permissions",
+          "tableTo": "permissions",
           "columnsFrom": [
-            "permision_id"
+            "permission_id"
           ],
           "columnsTo": [
             "id"
@@ -278,11 +278,11 @@
         }
       },
       "compositePrimaryKeys": {
-        "role_permision_role_id_permision_id_pk": {
-          "name": "role_permision_role_id_permision_id_pk",
+        "role_permissions_role_id_permission_id_pk": {
+          "name": "role_permissions_role_id_permission_id_pk",
           "columns": [
             "role_id",
-            "permision_id"
+            "permission_id"
           ]
         }
       },
@@ -292,8 +292,8 @@
     "candidate_profiles": {
       "name": "candidate_profiles",
       "columns": {
-        "id": {
-          "name": "id",
+        "user_id": {
+          "name": "user_id",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
@@ -390,12 +390,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "candidate_profiles_id_users_id_fk": {
-          "name": "candidate_profiles_id_users_id_fk",
+        "candidate_profiles_user_id_users_id_fk": {
+          "name": "candidate_profiles_user_id_users_id_fk",
           "tableFrom": "candidate_profiles",
           "tableTo": "users",
           "columnsFrom": [
-            "id"
+            "user_id"
           ],
           "columnsTo": [
             "id"
@@ -405,10 +405,10 @@
         }
       },
       "compositePrimaryKeys": {
-        "candidate_profiles_id": {
-          "name": "candidate_profiles_id",
+        "candidate_profiles_user_id": {
+          "name": "candidate_profiles_user_id",
           "columns": [
-            "id"
+            "user_id"
           ]
         }
       },

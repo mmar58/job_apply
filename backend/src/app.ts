@@ -21,6 +21,8 @@ export function createApp() {
         origin: env.CLIENT_ORIGIN.split(",").map(o => o.trim()),
         credentials: true
     }));
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
 
     const MySQLStore = MySQLStoreFactory(session);
     const maxAge = env.SESSION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
@@ -57,7 +59,7 @@ export function createApp() {
     const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: "draft-8", legacyHeaders: false });
     const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false });
 
-    app.use("/api/auth", authLimiter, authRouter);
+    app.use("/api/v1/auth", authLimiter, authRouter);
 
     app.use(notFoundHandler)
     app.use(errorHandler)
