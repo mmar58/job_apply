@@ -66,15 +66,15 @@ export function createApp() {
     const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false });
 
     app.use("/api/v1/auth", authLimiter, authRouter);
-    app.use("/api/jobs", publicJobsRouter);
-    app.use("/api", candidateApplicationsRouter);
+    app.use("/api/v1/jobs", publicJobsRouter);
+    app.use("/api/v1", candidateApplicationsRouter);
 
-    app.use("/api/candidate", requireAuth, candidateRouter);
-    app.use("/api/dashboard", requireAuth, dashboardRouter);
-    app.use("/api/admin/jobs", requireAuth, adminJobsRouter);
-    app.use("/api/admin/applications", requireAuth, adminApplicationsRouter);
-    app.use("/api/admin/users", requireAuth, usersRouter);
-    app.use("/api/ai", requireAuth, aiLimiter, aiRouter);
+    app.use("/api/v1/candidate", requireAuth, candidateRouter);
+    app.use("/api/v1/dashboard", requireAuth, dashboardRouter);
+    app.use("/api/v1/admin/jobs", requireAuth, adminJobsRouter);
+    app.use("/api/v1/admin/applications", requireAuth, adminApplicationsRouter);
+    app.use("/api/v1/admin/users", requireAuth, usersRouter);
+    app.use("/api/v1/ai", requireAuth, aiLimiter, aiRouter);
 
     app.use(notFoundHandler)
     app.use(errorHandler)

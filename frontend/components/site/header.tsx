@@ -8,7 +8,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
 
 const navItems = [
-    { href: "/#jobs", label: "Find Jobs" },
+    { href: "/jobs", label: "Find Jobs" },
     { href: "/#about", label: "About" },
     { href: "/#contact", label: "Contact" }
 ];
