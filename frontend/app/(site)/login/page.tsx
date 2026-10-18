@@ -1,4 +1,4 @@
-import LoginWidget from "@/components/common/login-widget";
+import LoginWidget from "@/components/common/widgets/login-widget";
 
 export default function LoginPage() {
     return (

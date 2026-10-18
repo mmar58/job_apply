@@ -1,4 +1,4 @@
-import RegisterWidget from "@/components/common/register-widget";
+import RegisterWidget from "@/components/common/widgets/register-widget";
 
 export default function RegisterPage() {
     return (
