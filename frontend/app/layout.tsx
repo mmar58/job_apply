@@ -16,9 +16,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${outfit.variable} h-full antialiased`}
+      className={`${inter.variable} ${outfit.variable} h-full antialiased no-scrollbar`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col no-scrollbar" suppressHydrationWarning>
         <AuthProvider>
           {children}
         </AuthProvider>

@@ -1,6 +1,7 @@
 import { AuthUser } from "@/lib/types";
 import { create } from "zustand";
 import { request } from "@/lib/api-core";
+import { toast } from "sonner";
 
 type AuthStore = {
     user: AuthUser | null;
@@ -20,6 +21,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             set({ loading: true });
             const res = await request<{ user: AuthUser }>("/auth/me");
             set({ user: res.user });
+            toast.success(`Welcome back ${res.user.name}`)
         } catch (error) {
             console.error("Error fetching user:", error);
         } finally {
