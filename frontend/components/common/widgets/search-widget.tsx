@@ -1,14 +1,28 @@
+"use client";
+
 import { Search } from "lucide-react";
 
 export default function SearchWidget() {
     return (
-        <form className="flex w-2/3 bg-transparent border border-black rounded-full">
-            <Search className="w-5 h-5 m-2" />
-            <input id="hero-search-input" className="bg-transparent justify-center outline-none flex-1" placeholder="Search for jobs" />
+        <form
+            onSubmit={(e) => e.preventDefault()}
+            className="w-full max-w-xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-1.5 sm:p-2 bg-card rounded-2xl sm:rounded-full border border-border shadow-md focus-within:ring-2 focus-within:ring-ring/50 transition-all"
+        >
+            <div className="flex items-center flex-1 px-2.5 py-1">
+                <Search className="size-5 text-muted-foreground shrink-0 mr-2" />
+                <input
+                    id="hero-search-input"
+                    className="w-full bg-transparent text-sm sm:text-base outline-none text-foreground placeholder:text-muted-foreground"
+                    placeholder="Search by role, company, or keyword..."
+                />
+            </div>
             <button
                 type="submit"
                 id="hero-search-submit"
-                className="bg-black text-white px-4 py-2 rounded-full">Search</button>
+                className="shrink-0 px-6 py-2.5 sm:py-2 rounded-xl sm:rounded-full bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 active:scale-[0.98] transition-all shadow-sm"
+            >
+                Search
+            </button>
         </form>
-    )
+    );
 }

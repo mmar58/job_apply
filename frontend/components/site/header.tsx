@@ -1,48 +1,110 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
+import { Menu, X } from "lucide-react";
 import { Logo } from "./logo";
 
-const nav = [
+const navItems = [
     { href: "/#jobs", label: "Find Jobs" },
     { href: "/#about", label: "About" },
     { href: "/#contact", label: "Contact" }
 ];
 
 export default function Header() {
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
     return (
-        <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-sm">
-            {/* Added h-16 for height and items-center to vertically center everything */}
-            <div className="flex items-center h-24 px-4 container mx-auto">
+        <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/80 backdrop-blur-md">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex h-16 sm:h-20 items-center justify-between gap-4">
+                    {/* Logo Section */}
+                    <div className="shrink-0">
+                        <Logo />
+                    </div>
 
-                {/* Left Section: Logo takes up equal space (flex-1) */}
-                <div className="flex-1">
-                    <Logo />
-                </div>
-
-                {/* Center Section: Navbar sits exactly in the middle */}
-                <nav className="flex-none">
-                    {/* Added gap-6 to visually space out your links */}
-                    <ul className="flex items-center gap-6">
-                        {nav.map((item) => (
-                            <li key={item.href}>
-                                <Link href={item.href} className="text-md font-medium transition-colors hover:text-primary p-2 hover:bg-blend-darken">
-                                    {item.label}
-                                </Link>
-                            </li>
+                    {/* Center Desktop Navigation */}
+                    <nav className="hidden md:flex items-center gap-8">
+                        {navItems.map((item) => (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors hover:underline underline-offset-4"
+                            >
+                                {item.label}
+                            </Link>
                         ))}
-                    </ul>
-                </nav>
+                    </nav>
 
-                {/* Right Section: Empty spacer balances the left section so the center stays perfectly centered */}
-                <div className="flex flex-1 gap-2 justify-end mr-[5%]">
-                    <Link href="/login" className="text-md font-medium transition-colors hover:text-primary rounded-full p-2 hover:ring-2">
-                        Login
-                    </Link>
-                    <Link href="/register" className="text-md font-medium transition-colors hover:text-primary ring-gray-400 ring-2 rounded-full p-2 hover:ring-black">
-                        Register
-                    </Link>
+                    {/* Right Desktop Actions */}
+                    <div className="hidden md:flex items-center gap-3">
+                        <Link
+                            href="/login"
+                            className="inline-flex items-center justify-center text-sm font-medium px-4 py-2 rounded-full border border-border/80 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                        >
+                            Login
+                        </Link>
+                        <Link
+                            href="/register"
+                            className="inline-flex items-center justify-center text-sm font-medium px-4 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-colors"
+                        >
+                            Register
+                        </Link>
+                    </div>
+
+                    {/* Mobile Menu Button */}
+                    <div className="flex md:hidden items-center">
+                        <button
+                            type="button"
+                            onClick={() => setMobileMenuOpen((prev) => !prev)}
+                            className="inline-flex items-center justify-center p-2 rounded-lg text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-expanded={mobileMenuOpen}
+                            aria-label="Toggle navigation menu"
+                        >
+                            {mobileMenuOpen ? (
+                                <X className="size-6" />
+                            ) : (
+                                <Menu className="size-6" />
+                            )}
+                        </button>
+                    </div>
                 </div>
-
             </div>
+
+            {/* Mobile Dropdown Menu */}
+            {mobileMenuOpen && (
+                <div className="md:hidden border-t border-border/60 bg-background/95 backdrop-blur-lg px-4 pt-3 pb-6 animate-in slide-in-from-top-2 duration-200">
+                    <nav className="flex flex-col space-y-1">
+                        {navItems.map((item) => (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="px-3 py-2.5 rounded-lg text-base font-medium text-foreground/90 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                            >
+                                {item.label}
+                            </Link>
+                        ))}
+                    </nav>
+
+                    <div className="mt-4 pt-4 border-t border-border/60 grid grid-cols-2 gap-3">
+                        <Link
+                            href="/login"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="w-full inline-flex items-center justify-center text-sm font-medium py-2.5 px-4 rounded-xl border border-border bg-card/80 text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-center"
+                        >
+                            Login
+                        </Link>
+                        <Link
+                            href="/register"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="w-full inline-flex items-center justify-center text-sm font-medium py-2.5 px-4 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-center shadow-sm"
+                        >
+                            Register
+                        </Link>
+                    </div>
+                </div>
+            )}
         </header>
-    )
+    );
 }
