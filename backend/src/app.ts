@@ -7,8 +7,14 @@ import rateLimit from "express-rate-limit";
 import { env, isProd } from "./config/env.js";
 import { requireCustomHeader } from "./middleware/security.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
-import { attachUser } from "./middleware/auth.js";
+import { attachUser, requireAuth } from "./middleware/auth.js";
 import { authRouter } from "./modules/auth/routes.js";
+import { usersRouter } from "./modules/users/routes.js";
+import { candidateRouter } from "./modules/candidates/routes.js";
+import { adminJobsRouter, publicJobsRouter } from "./modules/jobs/routes.js";
+import { adminApplicationsRouter, candidateApplicationsRouter } from "./modules/applications/routes.js";
+import { dashboardRouter } from "./modules/dashboard/routes.js";
+import { aiRouter } from "./modules/ai/routes.js";
 
 export const SESSION_COOKIE = "anz.session";
 
@@ -60,6 +66,15 @@ export function createApp() {
     const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false });
 
     app.use("/api/v1/auth", authLimiter, authRouter);
+    app.use("/api/jobs", publicJobsRouter);
+    app.use("/api", candidateApplicationsRouter);
+
+    app.use("/api/candidate", requireAuth, candidateRouter);
+    app.use("/api/dashboard", requireAuth, dashboardRouter);
+    app.use("/api/admin/jobs", requireAuth, adminJobsRouter);
+    app.use("/api/admin/applications", requireAuth, adminApplicationsRouter);
+    app.use("/api/admin/users", requireAuth, usersRouter);
+    app.use("/api/ai", requireAuth, aiLimiter, aiRouter);
 
     app.use(notFoundHandler)
     app.use(errorHandler)
