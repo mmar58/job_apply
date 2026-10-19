@@ -2,23 +2,31 @@ import argon2 from "argon2";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, pool } from "./index.js";
 import { env } from "../config/env.js";
-import { PERMISSION_DESCRIPTIONS, ROLE_DEFINITIONS, type PermissionKey } from "../config/permissions.js"
+import { PERMISSION_DESCRIPTIONS, ROLE_DEFINITIONS, type PermissionKey } from "../config/permissions.js";
 import { permissions, roles, rolePermissions, userRoles, users } from "./schema/index.js";
 
-// Idempotent: safe to run many times. Syncs permissions/roles and ensures the first admin exists.
+/** Idempotent: safe to run many times. Syncs permissions/roles and ensures the first admin exists. */
 async function seed() {
     // 1. Permissions
-    const permissionKeys = Object.keys(PERMISSION_DESCRIPTIONS) as PermissionKey[];
-    await db.insert(permissions).ignore().values(permissionKeys.map((key) => ({ key, description: PERMISSION_DESCRIPTIONS[key] })))
-    const permRows = await db.select().from(permissions)
-    const permId = new Map(permRows.map((p) => [p.key, p.id]))
+    const keys = Object.keys(PERMISSION_DESCRIPTIONS) as PermissionKey[];
+    await db
+        .insert(permissions)
+        .ignore()
+        .values(keys.map((key) => ({ key, description: PERMISSION_DESCRIPTIONS[key] })));
+
+    for (const key of keys) {
+        await db.update(permissions).set({ description: PERMISSION_DESCRIPTIONS[key] }).where(eq(permissions.key, key));
+    }
+    const permRows = await db.select().from(permissions);
+    const permId = new Map(permRows.map((p) => [p.key, p.id]));
 
     // 2. Roles and their permissions
     for (const def of ROLE_DEFINITIONS) {
-        const [row] = await db.insert(roles)
+        await db
+            .insert(roles)
             .values({ name: def.name, description: def.description })
-            .onDuplicateKeyUpdate({ set: { description: def.description } })
-        const [role] = await db.select().from(roles).where(eq(roles.name, def.name)).limit(1)
+            .onDuplicateKeyUpdate({ set: { description: def.description } });
+        const [role] = await db.select().from(roles).where(eq(roles.name, def.name)).limit(1);
 
         const wanted = def.permissions.map((k) => permId.get(k)!).filter(Boolean);
         const existing = await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, role.id));
@@ -52,9 +60,17 @@ async function seed() {
     console.log("Seed complete.");
 }
 
-seed()
-    .catch((err) => {
-        console.error(err);
-        process.exitCode = 1;
-    })
-    .finally(() => pool.end());
+export { seed };
+
+const isDirectRun =
+    process.argv[1]?.replace(/\\/g, "/").endsWith("src/db/seed.ts") ||
+    process.argv[1]?.replace(/\\/g, "/").endsWith("src/db/seed.js");
+
+if (isDirectRun) {
+    seed()
+        .catch((err) => {
+            console.error(err);
+            process.exitCode = 1;
+        })
+        .finally(() => pool.end());
+}

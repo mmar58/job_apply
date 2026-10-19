@@ -28,5 +28,10 @@ export async function getCandidateProfile(userId: number) {
         .from(candidateSkills)
         .innerJoin(skills, eq(skills.id, candidateSkills.skillId))
         .where(eq(candidateSkills.candidateId, userId));
-    return { ...row, experienceYears: row?.experienceYears ?? 0, skills: skillRows.map((s) => s.label) };
+    return {
+        ...row,
+        location: row?.address ?? null,
+        experienceYears: row?.experienceYears ?? 0,
+        skills: skillRows.map((s) => s.label),
+    };
 }

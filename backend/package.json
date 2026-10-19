@@ -12,7 +12,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/db/seed.ts",
-    "db:setup": "pnpm db:create && pnpm db:migrate && pnpm db:seed"
+    "db:setup": "pnpm db:create && pnpm db:migrate && pnpm db:seed",
+    "test": "vitest run",
+    "test:watch": "vitest --watch"
   },
   "keywords": [],
   "author": "Malik Md Apu Rahman",
@@ -48,8 +50,11 @@
     "@types/express-session": "^1.19.0",
     "@types/ioredis": "^5.0.0",
     "@types/node": "^26.6.5",
+    "@types/supertest": "^7.2.1",
     "drizzle-kit": "^0.31.11",
+    "supertest": "^7.3.1",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   }
 }

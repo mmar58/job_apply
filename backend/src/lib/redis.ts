@@ -3,7 +3,7 @@ import { env } from "../config/env.js";
 
 // TTL Constants
 export const MATCH_SCORE_TTL_SECONDS = 48 * 60 * 60; // 48 hours sliding TTL
-export const SUMMARY_TTL_SECONDS = 20 * 60; // 20 minutes fixed TTL
+export const SUMMARY_TTL_SECONDS = 36 * 60 * 60; // 36 hours sliding TTL
 
 let redisClient: Redis | null = null;
 
@@ -48,7 +48,7 @@ export async function getCachedMatchScore(jobId: number, candidateId: number): P
         const val = await client.get(key);
         if (val !== null && val !== undefined) {
             // Sliding TTL: Renew TTL by 48 hours on every access
-            client.expire(key, MATCH_SCORE_TTL_SECONDS).catch(() => {});
+            client.expire(key, MATCH_SCORE_TTL_SECONDS).catch(() => { });
             const parsed = parseInt(val, 10);
             return isNaN(parsed) ? null : parsed;
         }

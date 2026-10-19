@@ -20,15 +20,17 @@ candidateRouter.get("/profile", async (req, res) => {
 });
 
 candidateRouter.put("/profile", async (req, res) => {
-    const { name, skills: skillNames, ...fields } = parse(profileSchema, req.body);
+    const { name, skills: skillNames, location, address: explicitAddress, ...fields } = parse(profileSchema, req.body);
     const userId = req.user!.id;
+    const address = explicitAddress ?? location ?? null;
 
     await db.transaction(async (tx) => {
         if (name) await tx.update(users).set({ name }).where(eq(users.id, userId));
+        const profileData = { userId, ...fields, address };
         await tx
             .insert(candidateProfiles)
-            .values({ userId, ...fields })
-            .onDuplicateKeyUpdate({ set: fields });
+            .values(profileData)
+            .onDuplicateKeyUpdate({ set: profileData });
 
         const skillIds = await resolveSkillIds(skillNames, tx);
         await tx.delete(candidateSkills).where(eq(candidateSkills.candidateId, userId));
