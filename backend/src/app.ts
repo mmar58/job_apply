@@ -68,7 +68,7 @@ export function createApp() {
     });
 
     const authLimiter = rateLimit({ windowMs: 1 * 60 * 1000, max: 60, standardHeaders: "draft-8", legacyHeaders: false });
-    const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false });
+    const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 40, standardHeaders: "draft-8", legacyHeaders: false });
 
     app.use("/api/v1/auth", authLimiter, authRouter);
     app.use("/api/v1/jobs", publicJobsRouter);
