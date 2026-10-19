@@ -10,7 +10,7 @@ const schema = z.object({
     // General
     NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
     PORT: z.coerce.number().default(4000),
-    CLIENT_ORIGIN: z.string().default("http://localhost:3000"),
+    CLIENT_ORIGIN: z.string().default("http://localhost:3000,http://localhost:4000"),
 
     // Database
     DB_HOST: z.string().default("localhost"),

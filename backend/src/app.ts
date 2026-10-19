@@ -1,6 +1,9 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import session from "express-session";
 import MySQLStoreFactory from "express-mysql-session";
 import rateLimit from "express-rate-limit";
@@ -16,13 +19,15 @@ import { adminApplicationsRouter, candidateApplicationsRouter } from "./modules/
 import { dashboardRouter } from "./modules/dashboard/routes.js";
 import { aiRouter } from "./modules/ai/routes.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export const SESSION_COOKIE = "anz.session";
 
 export function createApp() {
     const app = express();
     if (isProd) app.set("trust proxy", 1);
 
-    app.use(helmet());
+    app.use(helmet({ contentSecurityPolicy: false }));
     app.use(cors({
         origin: env.CLIENT_ORIGIN.split(",").map(o => o.trim()),
         credentials: true
@@ -77,8 +82,28 @@ export function createApp() {
     app.use("/api/v1/admin/candidates", requireAuth, adminCandidatesRouter);
     app.use("/api/v1/ai", requireAuth, aiLimiter, aiRouter);
 
-    app.use(notFoundHandler)
-    app.use(errorHandler)
+    // Static frontend serving (when frontend/out exists)
+    const frontendOut = path.resolve(__dirname, "../../frontend/out");
+    if (fs.existsSync(frontendOut)) {
+        app.use(express.static(frontendOut));
+
+        // Express 5 compatible SPA fallback
+        app.use((req, res, next) => {
+            if (req.method !== "GET" && req.method !== "HEAD") return next();
+            if (req.path.startsWith("/api")) return next();
+
+            const clean = req.path.replace(/^\//, "").replace(/\/$/, "");
+            const specificHtml = path.join(frontendOut, `${clean}.html`);
+            if (clean && fs.existsSync(specificHtml)) {
+                return res.sendFile(specificHtml);
+            }
+
+            res.sendFile(path.join(frontendOut, "index.html"));
+        });
+    }
+
+    app.use(notFoundHandler);
+    app.use(errorHandler);
 
     return app;
 }
